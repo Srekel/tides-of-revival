@@ -161,6 +161,8 @@ bool D3D11::create_device(HWND hwnd)
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/erosion2.hlsl", "CSErosion_2_collect_flow", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
+    compile_compute_shader(L"shaders/erosion3.hlsl", "CSErosion_3_move_sediment", nullptr, &m_compute_shaders[m_compute_shader_count]);
+    m_compute_shader_count++;
 
     assert(m_compute_shader_count + 10 < 32);
 

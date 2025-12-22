@@ -4,8 +4,11 @@ cbuffer constant_buffer_0 : register(b0)
     uint g_in_buffer_height;
     float g_sediment_capacity_factor;
     float g_droplet_max_sediment;
+    float g_deposit_speed;
+    float g_erosion_speed;
+    float g_evaporation;
+    float g_momentum;
 };
-
 
 StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
@@ -14,7 +17,7 @@ RWStructuredBuffer<float> g_output_buffer_droplet_energies : register(u2);
 RWStructuredBuffer<float> g_output_buffer_droplet_sizes : register(u3); 
 RWStructuredBuffer<float> g_output_buffer_droplet_sediment : register(u4); 
 RWStructuredBuffer<float> g_output_buffer_inflow : register(u5); 
-RWStructuredBuffer<float> g_output_buffer_outflow : register(u6); 
+RWStructuredBuffer<float2> g_output_buffer_droplet_positions_new : register(u6); 
 
 float height_at_pos(uint x, uint y, float2 droplet_pos) {
     const uint index_bl = x + 0 + (y + 0) * g_in_buffer_width;
@@ -69,6 +72,7 @@ float2 height_gradient_at_pos(uint x, uint y, float2 droplet_pos, out float heig
     }
     
     // TODO: Distinguise between sediment and erosion
+    // TODO: Momentum
 
     const uint index_in = DTid.x + DTid.y * g_in_buffer_width;
     float total_inflow = 0;
@@ -94,7 +98,7 @@ float2 height_gradient_at_pos(uint x, uint y, float2 droplet_pos, out float heig
                 continue;
             }
 
-            const float droplet_pos = g_output_buffer_droplet_positions[droplet_index];
+            const float2 droplet_pos = g_output_buffer_droplet_positions[droplet_index];
 
             float droplet_height = 0;
             const float2 gradient = height_gradient_at_pos(x, y, droplet_pos, droplet_height);
@@ -102,20 +106,28 @@ float2 height_gradient_at_pos(uint x, uint y, float2 droplet_pos, out float heig
             const float2 gradient_01 = normalize(gradient);
             const float2 cell_pos = float2(x, y);
             const float2 target_pos = cell_pos + droplet_pos + gradient_01;
-            if ((uint)target_pos.x == DTid.x && (uint)target_pos.y == DTid.y) {
-                const float height_difference = length(gradient); // gradient.y ??? target_height???
-                const float energy = g_output_buffer_droplet_energies[droplet_index];
-                const float sediment_carrying_capacity = height_difference * size * energy * g_sediment_capacity_factor;
+            const uint target_x = uint(floor(target_pos.x));
+            const uint target_y = uint(floor(target_pos.y));
+            if (target_x == DTid.x && target_y == DTid.y) {
+                const float2 droplet_pos_new = float2(target_pos.x - DTid.x, target_pos.y - DTid.y);
+                g_output_buffer_droplet_positions_new[droplet_index] = droplet_pos_new;
+
+                const float target_height = height_at_pos(DTid.x, DTid.y, droplet_pos_new);
+                const float height_difference = target_height - droplet_height; 
+                const bool flowing_downhill = height_difference < 0;
 
                 const float current_carrying = g_output_buffer_droplet_sediment[droplet_index];
-                const float target_height = height_at_pos(DTid.x, DTid.y, float2(target_pos.x - DTid.x, target_pos.y - DTid.y));
-                const float max_terrain_shift = (droplet_height - target_height) * 0.5; 
-                
-                if (current_carrying < sediment_carrying_capacity) {
+                const float max_terrain_shift = abs(height_difference * 0.5); // 0.5 not strictly necessary?
+
+                const float energy = g_output_buffer_droplet_energies[droplet_index];
+                const float sediment_carrying_capacity = -height_difference * size * energy * g_sediment_capacity_factor;
+
+                if (current_carrying < sediment_carrying_capacity && flowing_downhill) {
                     // Inflow
                     // Droplet can pick up more sediment from the neighboring cell
                     const float remaining_sediment_capacity_in_droplet = g_droplet_max_sediment - current_carrying;
-                    const float to_pick_up = min(remaining_sediment_capacity_in_droplet, sediment_carrying_capacity - current_carrying);
+                    const float to_pick_up_optimal = g_erosion_speed * (sediment_carrying_capacity - current_carrying);
+                    float to_pick_up = min(remaining_sediment_capacity_in_droplet, to_pick_up_optimal);
                     
                     // Don't flip heights
                     to_pick_up = min(to_pick_up, max_terrain_shift);
@@ -129,7 +141,7 @@ float2 height_gradient_at_pos(uint x, uint y, float2 droplet_pos, out float heig
                 }
                 else {
                     // Full, drop some at the neighboring cell
-                    const float to_drop = min(current_carrying, current_carrying - sediment_carrying_capacity);
+                    float to_drop = min(current_carrying, current_carrying - sediment_carrying_capacity);
                     
                     // Don't flip heights
                     to_drop = min(to_drop, max_terrain_shift);
@@ -138,26 +150,14 @@ float2 height_gradient_at_pos(uint x, uint y, float2 droplet_pos, out float heig
                     to_drop = -to_drop;
 
                     // Will not be reduced
-                    // I guess this can cause terrain flippening *in theory*
-                    // but hopefully it's a very minor chance/deal.
                     g_output_buffer_inflow[inflow_index] = to_drop;
                 }
-
-                // TODO
-                // Size and energy gotta be in next step
-
-                // Safe to do here??
-                // const float new_energy = height_difference * 0.1;
-                // g_output_buffer_droplet_energies[droplet_index] = new_energy;
-                
-                // const float new_size = size * 0.1;
-                // g_output_buffer_droplet_energies[droplet_index] = new_energy;
             }
         }
     }
 
     if (total_inflow > 0) {
-        const float carry_divisor = max_pick_up * rcp(total_inflow);
+        const float carry_divisor = max_inflow * rcp(total_inflow);
         for (uint i_flow = 0; i_flow < 8; i_flow++) {
             const float inflow = g_output_buffer_inflow[inflow_base_index + index_in];
             if (inflow > 0) {

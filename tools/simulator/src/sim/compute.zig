@@ -37,7 +37,7 @@ pub fn compute_f32_1(compute_id: graph.ComputeId, image_in_1: ?*types.ImageF32, 
 
 pub fn compute_f32_n(compute_id: graph.ComputeId, images_in: []*types.ImageF32, images_out: []*types.ImageF32, data: anytype) void {
     const compute_sequence_length: u32 = switch (compute_id) {
-        .erosion1 => 2,
+        .erosion1 => 3,
         else => 1,
     };
     const compute_iterations: u32 = switch (compute_id) {
@@ -381,8 +381,12 @@ pub fn remapCurve(image_in: *types.ImageF32, curve: []const types.Vec2, image_ou
 const ErosionSettings = extern struct {
     width: u32,
     height: u32,
-    sediment_capacity: f32 = 0.1,
-    _padding: f32 = undefined,
+    sediment_capacity: f32 = 2,
+    droplet_max_sediment: f32 = 0.1,
+    deposit_speed: f32 = 0.5,
+    erosion_speed: f32 = 0.5,
+    evaporation: f32 = 0.05,
+    momentum: f32 = 0.1,
 };
 
 pub fn erosion(image_in: *types.ImageF32) void {

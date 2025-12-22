@@ -1,9 +1,80 @@
+//////////////////////////////
+// EROSION
+// 
+//////////////////////////////
+// STEP 1
+// Rain: Create droplets
+// 
+// Write: droplet_sizes
+// Write: droplet_positions
+// 
+//////////////////////////////
+// STEP 2: 
+// Figure out where droplets go, or rather where they come from
+// and how much sediment they ought to pick up/drop off
+// 
+// Read: heightmap
+// Read: droplet_positions
+// Read: droplet_energies
+// Read: droplet_sizes
+// Read: droplet_sediment
+// Write: inflow
+// Write: droplet_positions_new
+// 
+//////////////////////////////
+// STEP 3:
+// Take the flow and move sediment to/from heightmap and/or droplet
+// 
+// Read: inflow
+// Write: heightmap
+// Write: droplet_sediment
+// 
+//////////////////////////////
+// STEP 4:
+// Update droplets
+// add energy based on height difference
+// evaporate
+// merge droplets
+// 
+// Read: droplet_positions_new
+// Write: droplet_positions
+// Write: droplet_energies
+// Write: droplet_sizes
+// 
+//////////////////////////////
+
+
+// g_output_buffer_heightmap
+// world space
+// 
+// g_output_buffer_droplet_positions
+// [0-1] offsets into cell
+// 
+// g_output_buffer_droplet_energies
+// "speed" of water
+// 
+// g_output_buffer_droplet_sizes
+// how much water is in this cell
+// 
+// g_output_buffer_droplet_sediment
+// how much sediment each droplet is currently carrying
+// 
+// g_output_buffer_inflow
+// how much sediment should be picked up or dropped off
+// 
+// g_output_buffer_droplet_positions_new
+// where each droplets will move to
+
 cbuffer constant_buffer_0 : register(b0)
 {
     uint g_in_buffer_width;
     uint g_in_buffer_height;
-    float _padding1;
-    float _padding2;
+    float g_sediment_capacity_factor;
+    float g_droplet_max_sediment;
+    float g_deposit_speed;
+    float g_erosion_speed;
+    float g_evaporation;
+    float g_momentum;
 };
 
 StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
@@ -13,7 +84,7 @@ RWStructuredBuffer<float> g_output_buffer_droplet_energies : register(u2);
 RWStructuredBuffer<float> g_output_buffer_droplet_sizes : register(u3); 
 RWStructuredBuffer<float> g_output_buffer_droplet_sediment : register(u4); 
 RWStructuredBuffer<float> g_output_buffer_inflow : register(u5); 
-RWStructuredBuffer<float> g_output_buffer_outflow : register(u6); 
+RWStructuredBuffer<float2> g_output_buffer_droplet_positions_new : register(u6); 
 
 float rand2dTo1d(float2 value, float2 dotDir = float2(12.9898, 78.233)){
 	float2 smallValue = sin(value);

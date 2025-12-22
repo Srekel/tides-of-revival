@@ -18,7 +18,7 @@ pub const ComputeId = enum(u32) {
     gather_points,
     erosion1, // 15
     erosion2,
-    // erosion3,
+    erosion3,
     reduce,
 };
 
