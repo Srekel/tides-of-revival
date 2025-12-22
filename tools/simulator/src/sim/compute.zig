@@ -505,6 +505,9 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void 
 
     nodes.math.rerangify(&sediment);
     types.saveImageF32(sediment, "sediment", false);
+
+    nodes.math.rerangify(&inflow);
+    types.saveImageF32(inflow, "inflow", false);
 }
 
 const GatherPointsSettings = extern struct {
