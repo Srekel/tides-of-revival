@@ -10,6 +10,7 @@ cbuffer constant_buffer_0 : register(b0)
     float g_momentum;
 };
 
+StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
 RWStructuredBuffer<float2> g_output_buffer_droplet_positions : register(u1); 
 RWStructuredBuffer<float> g_output_buffer_droplet_energies : register(u2); 
@@ -33,7 +34,7 @@ float height_at_pos(uint x, uint y, float2 droplet_pos) {
     return height;
 }
 
-[numthreads(32, 32, 1)] void CSErosion_3_move_sediment(uint3 DTid : SV_DispatchThreadID)
+[numthreads(32, 32, 1)] void CSErosion_4_update_droplets(uint3 DTid : SV_DispatchThreadID)
 {
     // Skip edges
     const uint range = 2;
@@ -45,7 +46,6 @@ float height_at_pos(uint x, uint y, float2 droplet_pos) {
         return;
     }
     
-
     // Loop over neighbors
     // old = where it came from (neighbor)
     // new = where it ended up (either self or ignored)
@@ -56,12 +56,15 @@ float height_at_pos(uint x, uint y, float2 droplet_pos) {
     // Assume all water flowed away
     // TODO: Account for droplets staying..?
     // Noooo can't do this here fffffffffffffffuuuuuuuuuuuuuuuuuuuu
-    g_output_buffer_droplet_sizes[index_new] = 0;
+    // g_output_buffer_droplet_sizes[index_new] = 0;
     
-    for (uint y = DTid.y - 1; y <= DTid.y + 1; y++) {
-        for (uint x = DTid.x - 1; x <= DTid.x + 1; x++) {
+    for (uint yy = 0; yy <= 2; yy++) {
+        for (uint xx = 0; xx <= 2; xx++) {
+            const uint x = DTid.x + xx - 1;
+            const uint y = DTid.y + yy - 1;
             const uint index_old = x + y * g_in_buffer_width;
-            const float2 droplet_pos_new = g_output_buffer_droplet_positions_new[index_old];
+
+            const float2 droplet_pos_new = g_output_buffer_droplet_positions_new[index_old]; // world space
             const uint droplet_pos_new_x = uint(floor(droplet_pos_new.x));
             const uint droplet_pos_new_y = uint(floor(droplet_pos_new.y));
             if (droplet_pos_new_x == DTid.x && droplet_pos_new_y == DTid.y) {
@@ -72,7 +75,7 @@ float height_at_pos(uint x, uint y, float2 droplet_pos) {
 
                 // Position
                 const float2 droplet_pos_new_offset = float2(droplet_pos_new.x - droplet_pos_new_x, droplet_pos_new.y - droplet_pos_new_y);
-                const float droplet_pos = lerp(droplet_pos_self, droplet_pos_offset, size_new / size_total);
+                const float droplet_pos = lerp(droplet_pos_self, droplet_pos_new_offset, size_new / size_total);
                 g_output_buffer_droplet_positions[index_new] = droplet_pos_new_offset;
 
                 // Energy
@@ -88,7 +91,7 @@ float height_at_pos(uint x, uint y, float2 droplet_pos) {
                 }
                 else {
                     const float gravity = 1;
-                    energy += height_difference * gravity;
+                    energy -= height_difference * gravity;
                 }
                 
                 energy = lerp(energy_old, energy, size_new / size_total);

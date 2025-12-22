@@ -37,13 +37,16 @@ pub fn compute_f32_1(compute_id: graph.ComputeId, image_in_1: ?*types.ImageF32, 
 
 pub fn compute_f32_n(compute_id: graph.ComputeId, images_in: []*types.ImageF32, images_out: []*types.ImageF32, data: anytype) void {
     const compute_sequence_length: u32 = switch (compute_id) {
-        .erosion1 => 3,
+        .erosion1 => 4,
         else => 1,
     };
     const compute_iterations: u32 = switch (compute_id) {
-        .erosion1 => 5,
+        .erosion1 => 500,
         else => 1,
     };
+
+    const width = if (images_in.len > 0) images_in[0].size.width else images_out[0].size.width;
+    const height = if (images_in.len > 0) images_in[0].size.height else images_out[0].size.height;
     var compute_info = graph.ComputeInfo{
         .compute_id = compute_id,
         .compute_sequence_length = compute_sequence_length,
@@ -54,10 +57,7 @@ pub fn compute_f32_n(compute_id: graph.ComputeId, images_in: []*types.ImageF32, 
         .out_count = @intCast(images_out.len),
         .data_size = @sizeOf(@TypeOf(data)),
         .data = std.mem.asBytes(&data),
-        .dispatch_size = .{
-            @intCast(images_in[0].size.width),
-            @intCast(images_in[0].size.height),
-        },
+        .dispatch_size = .{ @intCast(width), @intCast(height) },
     };
 
     for (images_in, compute_info.in_buffers[0..images_in.len]) |image_in, *in_buffer| {
@@ -70,6 +70,52 @@ pub fn compute_f32_n(compute_id: graph.ComputeId, images_in: []*types.ImageF32, 
         out_buffer.data = image_out.pixels.ptr;
         out_buffer.width = @intCast(image_out.size.width);
         out_buffer.height = @intCast(image_out.size.height);
+    }
+
+    compute_fn(&compute_info);
+}
+
+pub fn compute_f32_n_typed(compute_id: graph.ComputeId, images_in: []*types.ImageF32, images_out: []*types.ImageF32, out_buffer_types: []const graph.ComputeBufferType, data: anytype) void {
+    const compute_sequence_length: u32 = switch (compute_id) {
+        .erosion1 => 4,
+        else => 1,
+    };
+    const compute_iterations: u32 = switch (compute_id) {
+        .erosion1 => 1,
+        else => 1,
+    };
+
+    const width = if (images_in.len > 0) images_in[0].size.width else images_out[0].size.width;
+    const height = if (images_in.len > 0) images_in[0].size.height else images_out[0].size.height;
+    var compute_info = graph.ComputeInfo{
+        .compute_id = compute_id,
+        .compute_sequence_length = compute_sequence_length,
+        .compute_iterations = compute_iterations,
+        .in_buffers = ([_]graph.ComputeBuffer{.{}} ** 8),
+        .out_buffers = ([_]graph.ComputeBuffer{.{}} ** 8),
+        .in_count = @intCast(images_in.len),
+        .out_count = @intCast(images_out.len),
+        .data_size = @sizeOf(@TypeOf(data)),
+        .data = std.mem.asBytes(&data),
+        .dispatch_size = .{ @intCast(width), @intCast(height) },
+    };
+
+    for (images_in, compute_info.in_buffers[0..images_in.len]) |image_in, *in_buffer| {
+        in_buffer.data = image_in.pixels.ptr;
+        in_buffer.width = @intCast(width);
+        in_buffer.height = @intCast(height);
+    }
+
+    for (images_out, compute_info.out_buffers[0..images_out.len], out_buffer_types) |image_out, *out_buffer, buffer_type| {
+        const width_divisor: u64 = switch (buffer_type) {
+            .float2 => 2,
+            else => 1,
+        };
+
+        out_buffer.data = image_out.pixels.ptr;
+        out_buffer.width = @intCast(image_out.size.width / width_divisor);
+        out_buffer.height = @intCast(image_out.size.height);
+        out_buffer.buffer_type = buffer_type;
     }
 
     compute_fn(&compute_info);
@@ -381,31 +427,77 @@ pub fn remapCurve(image_in: *types.ImageF32, curve: []const types.Vec2, image_ou
 const ErosionSettings = extern struct {
     width: u32,
     height: u32,
-    sediment_capacity: f32 = 2,
+    sediment_capacity: f32 = 200,
     droplet_max_sediment: f32 = 0.1,
     deposit_speed: f32 = 0.5,
     erosion_speed: f32 = 0.5,
-    evaporation: f32 = 0.05,
+    evaporation: f32 = 0.95,
     momentum: f32 = 0.1,
 };
 
-pub fn erosion(image_in: *types.ImageF32) void {
+pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void {
     const erosion_data = ErosionSettings{
-        .width = @as(u32, @intCast(image_in.size.width)),
-        .height = @as(u32, @intCast(image_in.size.height)),
+        .width = @as(u32, @intCast(heightmap.size.width)),
+        .height = @as(u32, @intCast(heightmap.size.height)),
     };
 
-    var water = makeImage(erosion_data.width, erosion_data.height);
-    defer std.heap.c_allocator.free(water.pixels);
+    var positions = makeImage(erosion_data.width * 2, erosion_data.height);
+    var energies = makeImage(erosion_data.width, erosion_data.height);
+    var sizes = makeImage(erosion_data.width, erosion_data.height);
+    var sediment = makeImage(erosion_data.width, erosion_data.height);
+    var inflow = makeImage(erosion_data.width * 8, erosion_data.height);
+    var positions_new = makeImage(erosion_data.width * 2, erosion_data.height);
+    defer std.heap.c_allocator.free(positions.pixels);
+    defer std.heap.c_allocator.free(energies.pixels);
+    defer std.heap.c_allocator.free(sizes.pixels);
+    defer std.heap.c_allocator.free(sediment.pixels);
+    defer std.heap.c_allocator.free(inflow.pixels);
+    defer std.heap.c_allocator.free(positions_new.pixels);
 
-    var in_buffers = [_]*types.ImageF32{image_in};
-    var out_buffers = [_]*types.ImageF32{ image_in, &water };
-    compute_f32_n(
+    positions.zeroClear();
+    energies.zeroClear();
+    sizes.zeroClear();
+    sediment.zeroClear();
+    inflow.zeroClear();
+    positions_new.zeroClear();
+
+    var in_buffers = [_]*types.ImageF32{heightmap};
+    var out_buffers = [_]*types.ImageF32{
+        scratch_image,
+        &positions,
+        &energies,
+        &sizes,
+        &sediment,
+        &inflow,
+        &positions_new,
+    };
+
+    const out_buffer_types = [_]graph.ComputeBufferType{
+        .float,
+        .float2,
+        .float,
+        .float,
+        .float,
+        .float,
+        .float2,
+    };
+    compute_f32_n_typed(
         .erosion1,
         in_buffers[0..],
         out_buffers[0..],
+        out_buffer_types[0..],
         erosion_data,
     );
+
+    heightmap.swap(scratch_image);
+    nodes.math.rerangify(&energies);
+    types.saveImageF32(energies, "energies", false);
+
+    nodes.math.rerangify(&sizes);
+    types.saveImageF32(sizes, "sizes", false);
+
+    nodes.math.rerangify(&sediment);
+    types.saveImageF32(sediment, "sediment", false);
 }
 
 const GatherPointsSettings = extern struct {

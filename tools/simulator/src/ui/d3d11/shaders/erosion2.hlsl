@@ -10,6 +10,7 @@ cbuffer constant_buffer_0 : register(b0)
     float g_momentum;
 };
 
+StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
 RWStructuredBuffer<float2> g_output_buffer_droplet_positions : register(u1); 
 RWStructuredBuffer<float> g_output_buffer_droplet_energies : register(u2); 
@@ -49,11 +50,15 @@ float2 height_gradient_at_pos(uint x, uint y, float2 droplet_pos, out float heig
     const float dx_bot = height_bl - height_br; // -50
     const float dx_top = height_tl - height_tr; // 0
     const float dx = lerp(dx_bot, dx_top, droplet_pos.y); // -45
-    const float dy_left = height_bl - height_tl; // 0
+    const float dy_left = height_bl - height_tl; // -100
     const float dy_right = height_br - height_tr; // 50
-    const float dy = lerp(dy_left, dy_right, droplet_pos.x); // 40
+    const float dy = lerp(dy_left, dy_right, droplet_pos.x); // -100 -> 50 @ 80% = 20
 
     return float2(dx, dy);
+}
+
+float length_squared(float2 vec) {
+    return vec.x * vec.x + vec.y * vec.y;
 }
 
 [numthreads(32, 32, 1)] void CSErosion_2_collect_flow(uint3 DTid : SV_DispatchThreadID)
@@ -65,6 +70,8 @@ float2 height_gradient_at_pos(uint x, uint y, float2 droplet_pos, out float heig
         DTid.y <= range + 1 ||
         DTid.y >= g_in_buffer_height - range - 2)
     {
+        const uint index_in = DTid.x + DTid.y * g_in_buffer_width;
+        // g_output_buffer_heightmap[index_in] = 1000;
         return;
     }
     
@@ -74,10 +81,15 @@ float2 height_gradient_at_pos(uint x, uint y, float2 droplet_pos, out float heig
     const uint index_in = DTid.x + DTid.y * g_in_buffer_width;
     float total_inflow = 0;
     float max_inflow = 100000;
+    
     const uint inflow_base_index = DTid.x * 8 + DTid.y * 8 * g_in_buffer_width;
     const uint inflow_offset_index = 0;
-    for (uint y = DTid.y - 1; y <= DTid.y + 1; y++) {
-        for (uint x = DTid.x - 1; x <= DTid.x + 1; x++) {
+    for (uint yy = 0; yy <= 2; yy++) {
+        for (uint xx = 0; xx <= 2; xx++) {
+            const uint x = DTid.x + xx - 1;
+            const uint y = DTid.y + yy - 1;
+    // for (uint y = DTid.y - 1; y <= DTid.y + 1; y++) {
+    //     for (uint x = DTid.x - 1; x <= DTid.x + 1; x++) {
             if (x == DTid.x && y == DTid.y) {
                 // CORRECT?!
                 // Probably not
@@ -99,6 +111,9 @@ float2 height_gradient_at_pos(uint x, uint y, float2 droplet_pos, out float heig
 
             float droplet_height = 0;
             const float2 gradient = height_gradient_at_pos(x, y, droplet_pos, droplet_height);
+            if (length_squared(gradient) < 0.001) {
+                continue; 
+            }
 
             const float2 gradient_01 = normalize(gradient);
             const float2 cell_pos = float2(x, y);
@@ -106,7 +121,10 @@ float2 height_gradient_at_pos(uint x, uint y, float2 droplet_pos, out float heig
             const uint target_x = uint(floor(target_pos.x));
             const uint target_y = uint(floor(target_pos.y));
             if (target_x == DTid.x && target_y == DTid.y) {
-                g_output_buffer_droplet_positions_new[droplet_index] = target_pos.x;
+                // g_output_buffer_heightmap[index_in] = 1000;
+
+                // store new pos in world space
+                g_output_buffer_droplet_positions_new[droplet_index] = target_pos;
 
                 const float2 droplet_pos_new = float2(target_pos.x - DTid.x, target_pos.y - DTid.y);
                 const float target_height = height_at_pos(DTid.x, DTid.y, droplet_pos_new);

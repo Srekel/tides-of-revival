@@ -19,7 +19,8 @@ pub const ComputeId = enum(u32) {
     erosion1, // 15
     erosion2,
     erosion3,
-    reduce,
+    erosion4,
+    reduce, // 19
 };
 
 pub const ComputeOperatorId = enum(u32) {

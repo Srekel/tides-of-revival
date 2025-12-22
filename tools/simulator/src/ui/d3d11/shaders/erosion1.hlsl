@@ -1,67 +1,71 @@
 //////////////////////////////
 // EROSION
-// 
+//
 //////////////////////////////
 // STEP 1
 // Rain: Create droplets
-// 
-// Write: droplet_sizes
-// Write: droplet_positions
-// 
+//
+//                              Self  Neighbours
+// droplet_sizes                  W       -
+// droplet_positions              W       -
+//
 //////////////////////////////
-// STEP 2: 
+// STEP 2:
 // Figure out where droplets go, or rather where they come from
 // and how much sediment they ought to pick up/drop off
-// 
-// Read: heightmap
-// Read: droplet_positions
-// Read: droplet_energies
-// Read: droplet_sizes
-// Read: droplet_sediment
-// Write: inflow
-// Write: droplet_positions_new
-// 
+//
+//                              Self  Neighbours
+// heightmap                      R       R
+// droplet_positions              R       R
+// droplet_energies               R       R
+// droplet_sizes                  R       R
+// droplet_sediment               R       R
+// Write: inflow                  W       -
+// Write: droplet_positions_new   -       W
+//
 //////////////////////////////
 // STEP 3:
 // Take the flow and move sediment to/from heightmap and/or droplet
-// 
-// Read: inflow
-// Write: heightmap
-// Write: droplet_sediment
-// 
+//
+//                              Self  Neighbours
+// inflow                         R       -
+// heightmap                      -       W
+// droplet_sediment               -       W
+//
 //////////////////////////////
 // STEP 4:
 // Update droplets
 // add energy based on height difference
 // evaporate
 // merge droplets
-// 
-// Read: droplet_positions_new
-// Write: droplet_positions
-// Write: droplet_energies
-// Write: droplet_sizes
-// Write: droplet_sediment
+//
+//                              Self  Neighbours
+// droplet_positions_new          R       R
+// droplet_positions              W       W
+// droplet_energies               W       W
+// droplet_sizes                  W       W
+// droplet_sediment               W       W
 //////////////////////////////
 
 
 // g_output_buffer_heightmap
 // world space
-// 
+//
 // g_output_buffer_droplet_positions
 // position, [0,1] cell offset space
-// 
+//
 // g_output_buffer_droplet_energies
 // "speed" of water
-// 
+//
 // g_output_buffer_droplet_sizes
 // how much water is in this cell
-// 
+//
 // g_output_buffer_droplet_sediment
 // how much sediment each droplet is currently carrying
-// 
+//
 // g_output_buffer_inflow
 // how much sediment should be picked up or dropped off
-// 
+//
 // g_output_buffer_droplet_positions_new
 // where each droplets will move to, worldspace
 
@@ -77,13 +81,14 @@ cbuffer constant_buffer_0 : register(b0)
     float g_momentum;
 };
 
+StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
-RWStructuredBuffer<float2> g_output_buffer_droplet_positions : register(u1); 
-RWStructuredBuffer<float> g_output_buffer_droplet_energies : register(u2); 
-RWStructuredBuffer<float> g_output_buffer_droplet_sizes : register(u3); 
-RWStructuredBuffer<float> g_output_buffer_droplet_sediment : register(u4); 
-RWStructuredBuffer<float> g_output_buffer_inflow : register(u5); 
-RWStructuredBuffer<float2> g_output_buffer_droplet_positions_new : register(u6); 
+RWStructuredBuffer<float2> g_output_buffer_droplet_positions : register(u1);
+RWStructuredBuffer<float> g_output_buffer_droplet_energies : register(u2);
+RWStructuredBuffer<float> g_output_buffer_droplet_sizes : register(u3);
+RWStructuredBuffer<float> g_output_buffer_droplet_sediment : register(u4);
+RWStructuredBuffer<float> g_output_buffer_inflow : register(u5);
+RWStructuredBuffer<float2> g_output_buffer_droplet_positions_new : register(u6);
 
 float rand2dTo1d(float2 value, float2 dotDir = float2(12.9898, 78.233)){
 	float2 smallValue = sin(value);
@@ -112,13 +117,14 @@ float2 rand2dTo2d(float2 value) {
     {
         return;
     }
-    
-    // Inititialize first time
-    if (!all(g_output_buffer_droplet_positions[index_in])) {
+
+    // Initialize first time
+    if (g_output_buffer_heightmap[index_in] == 0) {
         g_output_buffer_droplet_sizes[index_in] = 0;
         g_output_buffer_droplet_positions[index_in] = float2(0,0);
         g_output_buffer_droplet_energies[index_in] = 1;
         g_output_buffer_droplet_sediment[index_in] = 0;
+        g_output_buffer_heightmap[index_in] = g_input_buffer_heightmap[index_in];
     }
 
     // Clear flow, not sure if necessary...
@@ -126,7 +132,7 @@ float2 rand2dTo2d(float2 value) {
     for (uint i_flow = 0; i_flow < 8; i_flow++) {
         g_output_buffer_inflow[inflow_base_index + index_in] = 0;
     }
-    
+
     const float rain_amount = 1;
     const float total_size = g_output_buffer_droplet_sizes[index_in] + rain_amount;
 

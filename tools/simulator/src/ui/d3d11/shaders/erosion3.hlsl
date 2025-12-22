@@ -10,6 +10,7 @@ cbuffer constant_buffer_0 : register(b0)
     float g_momentum;
 };
 
+StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
 RWStructuredBuffer<float2> g_output_buffer_droplet_positions : register(u1); 
 RWStructuredBuffer<float> g_output_buffer_droplet_energies : register(u2); 
@@ -35,8 +36,13 @@ RWStructuredBuffer<float2> g_output_buffer_droplet_positions_new : register(u6);
     const uint inflow_offset_index = 0;
 
     float total_flow = 0;
-    for (uint y = DTid.y - 1; y <= DTid.y + 1; y++) {
-        for (uint x = DTid.x - 1; x <= DTid.x + 1; x++) {
+    // for (uint y = DTid.y - 1; y <= DTid.y + 1; y++) {
+    //     for (uint x = DTid.x - 1; x <= DTid.x + 1; x++) {
+    for (uint yy = 0; yy <= 2; yy++) {
+        for (uint xx = 0; xx <= 2; xx++) {
+            const uint x = DTid.x + xx - 1;
+            const uint y = DTid.y + yy - 1;
+            // g_output_buffer_heightmap[index_self] = 1000;
             if (x == DTid.x && y == DTid.y) {
                 continue;
             }
@@ -52,14 +58,18 @@ RWStructuredBuffer<float2> g_output_buffer_droplet_positions_new : register(u6);
                 const float sediment_to_pick_up = max(g_droplet_max_sediment - droplet_sediment, inflow);
                 g_output_buffer_heightmap[index_neighbor] -= sediment_to_pick_up;
                 g_output_buffer_droplet_sediment[index_neighbor] += sediment_to_pick_up;
+                g_output_buffer_heightmap[index_neighbor] = 100;
             }
             else if (inflow < 0) {
                 // Drop off sediment
                 const float sediment_to_drop = min(droplet_sediment, -inflow);
                 g_output_buffer_heightmap[index_neighbor] += sediment_to_drop;
                 g_output_buffer_droplet_sediment[index_neighbor] -= sediment_to_drop;
+                g_output_buffer_heightmap[index_neighbor] = 10;
             }
-            // total_flow += inflow;
+            else {
+                g_output_buffer_heightmap[index_neighbor] = 50;
+            }
 
             inflow_offset_index += 1;
         }

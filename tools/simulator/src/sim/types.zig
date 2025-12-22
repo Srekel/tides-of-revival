@@ -212,7 +212,7 @@ pub fn saveImageF32(image_in: ImageF32, name: []const u8, heatmap: bool) void {
         for (0..image_in.size.width) |x| {
             const index = x + y * image_in.size.width;
             const value_in = image_in.pixels[index];
-            const value_out: u8 = @intFromFloat(value_in * scale_factor_u8);
+            const value_out: u8 = @intFromFloat(@min(255, value_in * scale_factor_u8));
             image.pixels.grayscale8[index].value = value_out;
         }
     }
