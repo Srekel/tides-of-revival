@@ -454,6 +454,7 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void 
     defer std.heap.c_allocator.free(inflow.pixels);
     defer std.heap.c_allocator.free(positions_new.pixels);
 
+    scratch_image.zeroClear();
     positions.zeroClear();
     energies.zeroClear();
     sizes.zeroClear();
