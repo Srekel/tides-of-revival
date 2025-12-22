@@ -10,17 +10,21 @@ cbuffer constant_buffer_0 : register(b0)
     float g_momentum;
 };
 
+struct Droplet {
+    float size;
+    float energy;
+    float sediment;
+    float _padding4;
+    float2 position;
+    float _padding7;
+    float _padding8;
+};
+
 StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
-RWStructuredBuffer<float2> g_output_buffer_droplet_positions : register(u1); 
-RWStructuredBuffer<float> g_output_buffer_droplet_energies : register(u2); 
-RWStructuredBuffer<float> g_output_buffer_droplet_sizes : register(u3); 
-RWStructuredBuffer<float> g_output_buffer_droplet_sediment : register(u4); 
-RWStructuredBuffer<float> g_output_buffer_inflow : register(u5); 
-RWStructuredBuffer<float2> g_output_buffer_droplet_positions_new : register(u6); 
-RWStructuredBuffer<float> g_output_buffer_droplet_energies_new : register(u7); 
-RWStructuredBuffer<float> g_output_buffer_droplet_sizes_new : register(u8); 
-RWStructuredBuffer<float> g_output_buffer_droplet_sediment_new : register(u9); 
+RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1); 
+RWStructuredBuffer<Droplet> g_output_buffer_droplets_new : register(u2); 
+RWStructuredBuffer<float> g_output_buffer_inflow : register(u3); 
 
 float height_at_pos(uint x, uint y, float2 droplet_pos) {
     const uint index_bl = x + 0 + (y + 0) * g_in_buffer_width;
@@ -105,12 +109,12 @@ float length_squared(float2 vec) {
             inflow_offset_index += 1;
 
             const uint droplet_index = x + y * g_in_buffer_width;
-            const float size = g_output_buffer_droplet_sizes[droplet_index];
+            const float size = g_output_buffer_droplets[droplet_index].size;
             if (size == 0) {
                 continue;
             }
 
-            const float2 droplet_pos = g_output_buffer_droplet_positions[droplet_index];
+            const float2 droplet_pos = g_output_buffer_droplets[droplet_index].position;
 
             float droplet_height = 0;
             const float2 gradient = height_gradient_at_pos(x, y, droplet_pos, droplet_height);
@@ -127,17 +131,17 @@ float length_squared(float2 vec) {
                 // g_output_buffer_heightmap[index_in] = 1000;
 
                 // store new pos in world space
-                g_output_buffer_droplet_positions_new[droplet_index] = target_pos;
+                g_output_buffer_droplets_new[droplet_index].position = target_pos;
 
                 const float2 droplet_pos_new = float2(target_pos.x - DTid.x, target_pos.y - DTid.y);
                 const float target_height = height_at_pos(DTid.x, DTid.y, droplet_pos_new);
                 const float height_difference = target_height - droplet_height; 
                 const bool flowing_downhill = height_difference < 0;
 
-                const float current_carrying = g_output_buffer_droplet_sediment[droplet_index];
+                const float current_carrying = g_output_buffer_droplets[droplet_index].sediment;
                 const float max_terrain_shift = abs(height_difference * 0.5); // 0.5 not strictly necessary?
 
-                const float energy = g_output_buffer_droplet_energies[droplet_index];
+                const float energy = g_output_buffer_droplets[droplet_index].energy;
                 const float sediment_carrying_capacity = -height_difference * size * energy * g_sediment_capacity_factor;
 
                 if (current_carrying < sediment_carrying_capacity && flowing_downhill) {
@@ -161,26 +165,26 @@ float length_squared(float2 vec) {
                     // Full, drop some at the neighboring cell
                     float to_drop = min(current_carrying, current_carrying - sediment_carrying_capacity);
                     
-                    // Don't flip heights
+                    // // Don't flip heights
                     to_drop = min(to_drop, max_terrain_shift);
 
-                    // Gotta be negative
+                    // // Gotta be negative
                     to_drop = -to_drop;
 
-                    // Will not be reduced
+                    // // Will not be reduced
                     g_output_buffer_inflow[inflow_index] = to_drop;
                 }
             }
         }
     }
 
-    if (total_inflow > 0) {
-        const float carry_divisor = max_inflow * rcp(total_inflow);
-        for (uint i_flow = 0; i_flow < 8; i_flow++) {
-            const float inflow = g_output_buffer_inflow[inflow_base_index + index_in];
-            if (inflow > 0) {
-                g_output_buffer_inflow[inflow_base_index + index_in] *= carry_divisor;
-            }
-        }
-    }
+    // if (total_inflow > 0) {
+    //     const float carry_divisor = max_inflow * rcp(total_inflow);
+    //     for (uint i_flow = 0; i_flow < 8; i_flow++) {
+    //         const float inflow = g_output_buffer_inflow[inflow_base_index + index_in];
+    //         if (inflow > 0) {
+    //             g_output_buffer_inflow[inflow_base_index + index_in] *= carry_divisor;
+    //         }
+    //     }
+    // }
 }

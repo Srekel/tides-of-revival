@@ -72,7 +72,7 @@ pub fn compute_f32_n_typed(compute_id: graph.ComputeId, images_in: []*types.Imag
         else => 1,
     };
     const compute_iterations: u32 = switch (compute_id) {
-        .erosion1 => 1,
+        .erosion1 => 15,
         else => 1,
     };
 
@@ -418,12 +418,24 @@ pub fn remapCurve(image_in: *types.ImageF32, curve: []const types.Vec2, image_ou
 const ErosionSettings = extern struct {
     width: u32,
     height: u32,
-    sediment_capacity: f32 = 200,
-    droplet_max_sediment: f32 = 0.1,
+    sediment_capacity: f32 = 0.1,
+    droplet_max_sediment: f32 = 200,
     deposit_speed: f32 = 0.5,
-    erosion_speed: f32 = 0.5,
+    erosion_speed: f32 = 0.1,
     evaporation: f32 = 0.95,
     momentum: f32 = 0.1,
+};
+
+const ErosionDroplet = extern struct {
+    const float_count = @sizeOf(ErosionDroplet) / @sizeOf(f32);
+
+    size: f32,
+    energy: f32,
+    sediment: f32,
+    _padding4: f32,
+    pos: [2]f32,
+    _padding7: f32,
+    _padding8: f32,
 };
 
 pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void {
@@ -432,58 +444,28 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void 
         .height = @as(u32, @intCast(heightmap.size.height)),
     };
 
-    var positions = makeImage(erosion_data.width * 2, erosion_data.height);
-    var energies = makeImage(erosion_data.width, erosion_data.height);
-    var sizes = makeImage(erosion_data.width, erosion_data.height);
-    var sediment = makeImage(erosion_data.width, erosion_data.height);
+    var droplets = makeImage(erosion_data.width * ErosionDroplet.float_count, erosion_data.height);
+    var droplets_new = makeImage(erosion_data.width * ErosionDroplet.float_count, erosion_data.height);
     var inflow = makeImage(erosion_data.width * 8, erosion_data.height);
-    var positions_new = makeImage(erosion_data.width * 2, erosion_data.height);
-    var energies_new = makeImage(erosion_data.width, erosion_data.height);
-    var sizes_new = makeImage(erosion_data.width, erosion_data.height);
-    var sediment_new = makeImage(erosion_data.width, erosion_data.height);
-    defer std.heap.c_allocator.free(positions.pixels);
-    defer std.heap.c_allocator.free(energies.pixels);
-    defer std.heap.c_allocator.free(sizes.pixels);
-    defer std.heap.c_allocator.free(sediment.pixels);
+    defer std.heap.c_allocator.free(droplets.pixels);
+    defer std.heap.c_allocator.free(droplets_new.pixels);
     defer std.heap.c_allocator.free(inflow.pixels);
-    defer std.heap.c_allocator.free(positions_new.pixels);
-    defer std.heap.c_allocator.free(energies_new.pixels);
-    defer std.heap.c_allocator.free(sizes_new.pixels);
-    defer std.heap.c_allocator.free(sediment_new.pixels);
 
     scratch_image.zeroClear();
-    positions.zeroClear();
-    energies.zeroClear();
-    sizes.zeroClear();
-    sediment.zeroClear();
+    droplets.zeroClear();
+    droplets_new.zeroClear();
     inflow.zeroClear();
-    positions_new.zeroClear();
-    energies_new.zeroClear();
-    sizes_new.zeroClear();
-    sediment_new.zeroClear();
 
     var in_buffers = [_]*types.ImageF32{heightmap};
     var out_buffers = [_]*types.ImageF32{
         scratch_image,
-        &positions,
-        &energies,
-        &sizes,
-        &sediment,
+        &droplets,
+        &droplets_new,
         &inflow,
-        &positions_new,
-        &energies_new,
-        &sizes_new,
-        &sediment_new,
     };
 
     const out_buffer_types = [_]graph.ComputeBufferType{
         .float,
-        .float2,
-        .float,
-        .float,
-        .float,
-        .float,
-        .float2,
         .float,
         .float,
         .float,
@@ -497,17 +479,19 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void 
     );
 
     heightmap.swap(scratch_image);
-    nodes.math.rerangify(&energies);
-    types.saveImageF32(energies, "energies", false);
+    nodes.math.rerangify(heightmap);
 
-    nodes.math.rerangify(&sizes);
-    types.saveImageF32(sizes, "sizes", false);
+    // nodes.math.rerangify(&energies);
+    // types.saveImageF32(energies, "energies", false);
 
-    nodes.math.rerangify(&sediment);
-    types.saveImageF32(sediment, "sediment", false);
+    // nodes.math.rerangify(&sizes);
+    // types.saveImageF32(sizes, "sizes", false);
 
-    nodes.math.rerangify(&inflow);
-    types.saveImageF32(inflow, "inflow", false);
+    // nodes.math.rerangify(&sediment);
+    // types.saveImageF32(sediment, "sediment", false);
+
+    // nodes.math.rerangify(&inflow);
+    // types.saveImageF32(inflow, "inflow", false);
 }
 
 const GatherPointsSettings = extern struct {

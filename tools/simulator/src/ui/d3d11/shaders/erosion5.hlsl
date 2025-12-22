@@ -10,17 +10,21 @@ cbuffer constant_buffer_0 : register(b0)
     float g_momentum;
 };
 
+struct Droplet {
+    float size;
+    float energy;
+    float sediment;
+    float _padding4;
+    float2 position;
+    float _padding7;
+    float _padding8;
+};
+
 StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
-RWStructuredBuffer<float2> g_output_buffer_droplet_positions : register(u1); 
-RWStructuredBuffer<float> g_output_buffer_droplet_energies : register(u2); 
-RWStructuredBuffer<float> g_output_buffer_droplet_sizes : register(u3); 
-RWStructuredBuffer<float> g_output_buffer_droplet_sediment : register(u4); 
-RWStructuredBuffer<float> g_output_buffer_inflow : register(u5); 
-RWStructuredBuffer<float2> g_output_buffer_droplet_positions_new : register(u6); 
-RWStructuredBuffer<float> g_output_buffer_droplet_energies_new : register(u7); 
-RWStructuredBuffer<float> g_output_buffer_droplet_sizes_new : register(u8); 
-RWStructuredBuffer<float> g_output_buffer_droplet_sediment_new : register(u9); 
+RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1); 
+RWStructuredBuffer<Droplet> g_output_buffer_droplets_new : register(u2); 
+RWStructuredBuffer<float> g_output_buffer_inflow : register(u3); 
 
 [numthreads(32, 32, 1)] void CSErosion_5_apply_droplets(uint3 DTid : SV_DispatchThreadID)
 {
@@ -35,7 +39,7 @@ RWStructuredBuffer<float> g_output_buffer_droplet_sediment_new : register(u9);
     }
     
     const uint index_self = DTid.x + DTid.y * g_in_buffer_width;
-    g_output_buffer_droplet_energies[index_self] = g_output_buffer_droplet_energies_new[index_self];
-    g_output_buffer_droplet_sizes[index_self] = g_output_buffer_droplet_sizes_new[index_self];
-    g_output_buffer_droplet_sediment[index_self] = g_output_buffer_droplet_sediment_new[index_self];
+    g_output_buffer_droplets[index_self].energy = g_output_buffer_droplets_new[index_self].energy;
+    g_output_buffer_droplets[index_self].size = g_output_buffer_droplets_new[index_self].size;
+    g_output_buffer_droplets[index_self].sediment = g_output_buffer_droplets_new[index_self].sediment;
 }

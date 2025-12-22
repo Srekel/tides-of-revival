@@ -101,17 +101,21 @@ cbuffer constant_buffer_0 : register(b0)
     float g_momentum;
 };
 
+struct Droplet {
+    float size;
+    float energy;
+    float sediment;
+    float _padding4;
+    float2 position;
+    float _padding7;
+    float _padding8;
+};
+
 StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
-RWStructuredBuffer<float2> g_output_buffer_droplet_positions : register(u1); 
-RWStructuredBuffer<float> g_output_buffer_droplet_energies : register(u2); 
-RWStructuredBuffer<float> g_output_buffer_droplet_sizes : register(u3); 
-RWStructuredBuffer<float> g_output_buffer_droplet_sediment : register(u4); 
-RWStructuredBuffer<float> g_output_buffer_inflow : register(u5); 
-RWStructuredBuffer<float2> g_output_buffer_droplet_positions_new : register(u6); 
-RWStructuredBuffer<float> g_output_buffer_droplet_energies_new : register(u7); 
-RWStructuredBuffer<float> g_output_buffer_droplet_sizes_new : register(u8); 
-RWStructuredBuffer<float> g_output_buffer_droplet_sediment_new : register(u9); 
+RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1); 
+RWStructuredBuffer<Droplet> g_output_buffer_droplets_new : register(u2); 
+RWStructuredBuffer<float> g_output_buffer_inflow : register(u3); 
 
 float rand2dTo1d(float2 value, float2 dotDir = float2(12.9898, 78.233)){
 	float2 smallValue = sin(value);
@@ -143,25 +147,16 @@ float2 rand2dTo2d(float2 value) {
 
     // Initialize first time
     if (g_output_buffer_heightmap[index_in] == 0) {
-        g_output_buffer_droplet_sizes[index_in] = 0;
-        g_output_buffer_droplet_positions[index_in] = float2(0,0);
-        g_output_buffer_droplet_energies[index_in] = 1;
-        g_output_buffer_droplet_sediment[index_in] = 0;
         g_output_buffer_heightmap[index_in] = g_input_buffer_heightmap[index_in];
-    }
-
-    // Clear flow, not sure if necessary...
-    const uint inflow_base_index = DTid.x * 8 + DTid.y * 8 * g_in_buffer_width;
-    for (uint i_flow = 0; i_flow < 8; i_flow++) {
-        g_output_buffer_inflow[inflow_base_index + index_in] = 0;
+        g_output_buffer_droplets[index_in].energy = 1;
     }
 
     const float rain_amount = 1;
-    const float total_size = g_output_buffer_droplet_sizes[index_in] + rain_amount;
+    const float total_size = g_output_buffer_droplets[index_in].size + rain_amount;
 
-    const float2 pos_prev = g_output_buffer_droplet_positions[index_in];
+    const float2 pos_prev = g_output_buffer_droplets[index_in].position;
     const float2 pos_new = rand2dTo2d(float2(DTid.x, DTid.y));
 
-    g_output_buffer_droplet_positions[index_in] = lerp(pos_prev, pos_new, rain_amount / total_size);
-    g_output_buffer_droplet_sizes[index_in] = total_size;
+    g_output_buffer_droplets[index_in].position = lerp(pos_prev, pos_new, rain_amount / total_size);
+    g_output_buffer_droplets[index_in].size = total_size;
 }

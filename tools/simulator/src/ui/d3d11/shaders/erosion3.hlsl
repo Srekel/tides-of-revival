@@ -10,17 +10,21 @@ cbuffer constant_buffer_0 : register(b0)
     float g_momentum;
 };
 
+struct Droplet {
+    float size;
+    float energy;
+    float sediment;
+    float _padding4;
+    float2 position;
+    float _padding7;
+    float _padding8;
+};
+
 StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
-RWStructuredBuffer<float2> g_output_buffer_droplet_positions : register(u1); 
-RWStructuredBuffer<float> g_output_buffer_droplet_energies : register(u2); 
-RWStructuredBuffer<float> g_output_buffer_droplet_sizes : register(u3); 
-RWStructuredBuffer<float> g_output_buffer_droplet_sediment : register(u4); 
-RWStructuredBuffer<float> g_output_buffer_inflow : register(u5); 
-RWStructuredBuffer<float2> g_output_buffer_droplet_positions_new : register(u6); 
-RWStructuredBuffer<float> g_output_buffer_droplet_energies_new : register(u7); 
-RWStructuredBuffer<float> g_output_buffer_droplet_sizes_new : register(u8); 
-RWStructuredBuffer<float> g_output_buffer_droplet_sediment_new : register(u9); 
+RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1); 
+RWStructuredBuffer<Droplet> g_output_buffer_droplets_new : register(u2); 
+RWStructuredBuffer<float> g_output_buffer_inflow : register(u3); 
 
 [numthreads(32, 32, 1)] void CSErosion_3_move_sediment(uint3 DTid : SV_DispatchThreadID)
 {
@@ -55,24 +59,24 @@ RWStructuredBuffer<float> g_output_buffer_droplet_sediment_new : register(u9);
             const uint index_neighbor = x + y * g_in_buffer_width;
             const uint inflow_index = inflow_base_index + inflow_offset_index;
             const float inflow = g_output_buffer_inflow[inflow_index];
-            const float droplet_sediment = g_output_buffer_droplet_sediment[index_neighbor];
+            const float droplet_sediment = g_output_buffer_droplets[index_neighbor].sediment;
             if (inflow > 0) {
                 // Pick up sediment
-                const float sediment_to_pick_up = max(g_droplet_max_sediment - droplet_sediment, inflow);
-                g_output_buffer_heightmap[index_neighbor] -= sediment_to_pick_up;
-                g_output_buffer_droplet_sediment[index_neighbor] += sediment_to_pick_up;
-                g_output_buffer_heightmap[index_neighbor] = 100;
+                const float sediment_to_pick_up = min(g_droplet_max_sediment - droplet_sediment, inflow);
+                g_output_buffer_heightmap[index_neighbor] -= min(g_output_buffer_heightmap[index_neighbor], sediment_to_pick_up);
+                g_output_buffer_droplets[index_neighbor].sediment += sediment_to_pick_up;
+                // g_output_buffer_heightmap[index_neighbor] = 100;
             }
             else if (inflow < 0) {
                 // Drop off sediment
                 const float sediment_to_drop = min(droplet_sediment, -inflow);
                 g_output_buffer_heightmap[index_neighbor] += sediment_to_drop;
-                g_output_buffer_droplet_sediment[index_neighbor] -= sediment_to_drop;
-                g_output_buffer_heightmap[index_neighbor] = 10;
+                g_output_buffer_droplets[index_neighbor].sediment -= sediment_to_drop;
+                // g_output_buffer_heightmap[index_neighbor] = 10;
             }
-            else {
-                g_output_buffer_heightmap[index_neighbor] = 50;
-            }
+            // else {
+            //     g_output_buffer_heightmap[index_neighbor] = 50;
+            // }
 
             inflow_offset_index += 1;
         }
