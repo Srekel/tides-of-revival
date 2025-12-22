@@ -18,6 +18,9 @@ RWStructuredBuffer<float> g_output_buffer_droplet_sizes : register(u3);
 RWStructuredBuffer<float> g_output_buffer_droplet_sediment : register(u4); 
 RWStructuredBuffer<float> g_output_buffer_inflow : register(u5); 
 RWStructuredBuffer<float2> g_output_buffer_droplet_positions_new : register(u6); 
+RWStructuredBuffer<float> g_output_buffer_droplet_energies_new : register(u7); 
+RWStructuredBuffer<float> g_output_buffer_droplet_sizes_new : register(u8); 
+RWStructuredBuffer<float> g_output_buffer_droplet_sediment_new : register(u9); 
 
 [numthreads(32, 32, 1)] void CSErosion_3_move_sediment(uint3 DTid : SV_DispatchThreadID)
 {

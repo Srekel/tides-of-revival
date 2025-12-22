@@ -18,6 +18,9 @@ RWStructuredBuffer<float> g_output_buffer_droplet_sizes : register(u3);
 RWStructuredBuffer<float> g_output_buffer_droplet_sediment : register(u4); 
 RWStructuredBuffer<float> g_output_buffer_inflow : register(u5); 
 RWStructuredBuffer<float2> g_output_buffer_droplet_positions_new : register(u6); 
+RWStructuredBuffer<float> g_output_buffer_droplet_energies_new : register(u7); 
+RWStructuredBuffer<float> g_output_buffer_droplet_sizes_new : register(u8); 
+RWStructuredBuffer<float> g_output_buffer_droplet_sediment_new : register(u9); 
 
 float height_at_pos(uint x, uint y, float2 droplet_pos) {
     const uint index_bl = x + 0 + (y + 0) * g_in_buffer_width;
@@ -34,7 +37,7 @@ float height_at_pos(uint x, uint y, float2 droplet_pos) {
     return height;
 }
 
-[numthreads(32, 32, 1)] void CSErosion_4_update_droplets(uint3 DTid : SV_DispatchThreadID)
+[numthreads(32, 32, 1)] void CSErosion_4_calculate_droplets(uint3 DTid : SV_DispatchThreadID)
 {
     // Skip edges
     const uint range = 2;
@@ -95,14 +98,14 @@ float height_at_pos(uint x, uint y, float2 droplet_pos) {
                 }
                 
                 energy = lerp(energy_old, energy, size_new / size_total);
-                g_output_buffer_droplet_energies[index_new] = energy;
+                g_output_buffer_droplet_energies_new[index_new] = energy;
 
                 // Size
                 size_total *= g_evaporation;
-                g_output_buffer_droplet_sizes[index_new] = size_total;
+                g_output_buffer_droplet_sizes_new[index_new] = size_total;
 
                 // Sediment
-                g_output_buffer_droplet_sediment[index_new] += g_output_buffer_droplet_sediment[index_old];
+                g_output_buffer_droplet_sediment_new[index_new] = g_output_buffer_droplet_sediment[index_old];
             }
         }
     }

@@ -19,12 +19,12 @@ pub fn compute_f32_1(compute_id: graph.ComputeId, image_in_1: ?*types.ImageF32, 
             .data = if (image_in_1 != null) image_in_1.?.pixels.ptr else undefined,
             .width = @as(u32, @intCast(if (image_in_1 != null) image_in_1.?.size.width else 0)),
             .height = @as(u32, @intCast(if (image_in_1 != null) image_in_1.?.size.height else 0)),
-        }} ++ ([_]graph.ComputeBuffer{.{}} ** 7),
+        }} ++ ([_]graph.ComputeBuffer{.{}} ** 15),
         .out_buffers = .{graph.ComputeBuffer{
             .data = image_out_1.pixels.ptr,
             .width = @as(u32, @intCast(image_out_1.size.width)),
             .height = @as(u32, @intCast(image_out_1.size.height)),
-        }} ++ ([_]graph.ComputeBuffer{.{}} ** 7),
+        }} ++ ([_]graph.ComputeBuffer{.{}} ** 15),
         .in_count = if (image_in_1 != null) 1 else 0,
         .out_count = 1,
         .data_size = @sizeOf(@TypeOf(data)),
@@ -36,23 +36,14 @@ pub fn compute_f32_1(compute_id: graph.ComputeId, image_in_1: ?*types.ImageF32, 
 }
 
 pub fn compute_f32_n(compute_id: graph.ComputeId, images_in: []*types.ImageF32, images_out: []*types.ImageF32, data: anytype) void {
-    const compute_sequence_length: u32 = switch (compute_id) {
-        .erosion1 => 4,
-        else => 1,
-    };
-    const compute_iterations: u32 = switch (compute_id) {
-        .erosion1 => 500,
-        else => 1,
-    };
-
     const width = if (images_in.len > 0) images_in[0].size.width else images_out[0].size.width;
     const height = if (images_in.len > 0) images_in[0].size.height else images_out[0].size.height;
     var compute_info = graph.ComputeInfo{
         .compute_id = compute_id,
-        .compute_sequence_length = compute_sequence_length,
-        .compute_iterations = compute_iterations,
-        .in_buffers = ([_]graph.ComputeBuffer{.{}} ** 8),
-        .out_buffers = ([_]graph.ComputeBuffer{.{}} ** 8),
+        .compute_sequence_length = 1,
+        .compute_iterations = 1,
+        .in_buffers = ([_]graph.ComputeBuffer{.{}} ** 16),
+        .out_buffers = ([_]graph.ComputeBuffer{.{}} ** 16),
         .in_count = @intCast(images_in.len),
         .out_count = @intCast(images_out.len),
         .data_size = @sizeOf(@TypeOf(data)),
@@ -77,7 +68,7 @@ pub fn compute_f32_n(compute_id: graph.ComputeId, images_in: []*types.ImageF32, 
 
 pub fn compute_f32_n_typed(compute_id: graph.ComputeId, images_in: []*types.ImageF32, images_out: []*types.ImageF32, out_buffer_types: []const graph.ComputeBufferType, data: anytype) void {
     const compute_sequence_length: u32 = switch (compute_id) {
-        .erosion1 => 4,
+        .erosion1 => 5,
         else => 1,
     };
     const compute_iterations: u32 = switch (compute_id) {
@@ -91,8 +82,8 @@ pub fn compute_f32_n_typed(compute_id: graph.ComputeId, images_in: []*types.Imag
         .compute_id = compute_id,
         .compute_sequence_length = compute_sequence_length,
         .compute_iterations = compute_iterations,
-        .in_buffers = ([_]graph.ComputeBuffer{.{}} ** 8),
-        .out_buffers = ([_]graph.ComputeBuffer{.{}} ** 8),
+        .in_buffers = ([_]graph.ComputeBuffer{.{}} ** 16),
+        .out_buffers = ([_]graph.ComputeBuffer{.{}} ** 16),
         .in_count = @intCast(images_in.len),
         .out_count = @intCast(images_out.len),
         .data_size = @sizeOf(@TypeOf(data)),
@@ -129,12 +120,12 @@ pub fn compute_reduce_f32_1(compute_id: graph.ComputeId, operator_id: graph.Comp
             .data = image_in_1.pixels.ptr,
             .width = @as(u32, @intCast(image_in_1.size.width)),
             .height = @as(u32, @intCast(image_in_1.size.height)),
-        }} ++ ([_]graph.ComputeBuffer{.{}} ** 7),
+        }} ++ ([_]graph.ComputeBuffer{.{}} ** 15),
         .out_buffers = .{graph.ComputeBuffer{
             .data = image_out_1.pixels.ptr,
             .width = @as(u32, @intCast(image_out_1.size.width)),
             .height = @as(u32, @intCast(image_out_1.size.height)),
-        }} ++ ([_]graph.ComputeBuffer{.{}} ** 7),
+        }} ++ ([_]graph.ComputeBuffer{.{}} ** 15),
         .in_count = 1,
         .out_count = 1,
         .data_size = 0,
@@ -447,12 +438,18 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void 
     var sediment = makeImage(erosion_data.width, erosion_data.height);
     var inflow = makeImage(erosion_data.width * 8, erosion_data.height);
     var positions_new = makeImage(erosion_data.width * 2, erosion_data.height);
+    var energies_new = makeImage(erosion_data.width, erosion_data.height);
+    var sizes_new = makeImage(erosion_data.width, erosion_data.height);
+    var sediment_new = makeImage(erosion_data.width, erosion_data.height);
     defer std.heap.c_allocator.free(positions.pixels);
     defer std.heap.c_allocator.free(energies.pixels);
     defer std.heap.c_allocator.free(sizes.pixels);
     defer std.heap.c_allocator.free(sediment.pixels);
     defer std.heap.c_allocator.free(inflow.pixels);
     defer std.heap.c_allocator.free(positions_new.pixels);
+    defer std.heap.c_allocator.free(energies_new.pixels);
+    defer std.heap.c_allocator.free(sizes_new.pixels);
+    defer std.heap.c_allocator.free(sediment_new.pixels);
 
     scratch_image.zeroClear();
     positions.zeroClear();
@@ -461,6 +458,9 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void 
     sediment.zeroClear();
     inflow.zeroClear();
     positions_new.zeroClear();
+    energies_new.zeroClear();
+    sizes_new.zeroClear();
+    sediment_new.zeroClear();
 
     var in_buffers = [_]*types.ImageF32{heightmap};
     var out_buffers = [_]*types.ImageF32{
@@ -471,6 +471,9 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void 
         &sediment,
         &inflow,
         &positions_new,
+        &energies_new,
+        &sizes_new,
+        &sediment_new,
     };
 
     const out_buffer_types = [_]graph.ComputeBufferType{
@@ -481,6 +484,9 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void 
         .float,
         .float,
         .float2,
+        .float,
+        .float,
+        .float,
     };
     compute_f32_n_typed(
         .erosion1,
@@ -528,7 +534,7 @@ pub fn gatherPoints(image_in: *types.ImageF32, world_width: f32, world_height: f
             .data = image_in.pixels.ptr,
             .width = @as(u32, @intCast(image_in.size.width)),
             .height = @as(u32, @intCast(image_in.size.height)),
-        }} ++ ([_]graph.ComputeBuffer{.{}} ** 7),
+        }} ++ ([_]graph.ComputeBuffer{.{}} ** 15),
         .out_buffers = .{graph.ComputeBuffer{
             .buffer_type = .float2,
             .data = points_out.pixels.ptr,
@@ -539,7 +545,7 @@ pub fn gatherPoints(image_in: *types.ImageF32, world_width: f32, world_height: f
             .data = counter_out.pixels.ptr,
             .width = @as(u32, @intCast(counter_out.size.width)),
             .height = @as(u32, @intCast(counter_out.size.height)),
-        }} ++ ([_]graph.ComputeBuffer{.{}} ** 6),
+        }} ++ ([_]graph.ComputeBuffer{.{}} ** 14),
         .in_count = 1,
         .out_count = 2,
         .data_size = @sizeOf(GatherPointsSettings),

@@ -20,7 +20,8 @@ pub const ComputeId = enum(u32) {
     erosion2,
     erosion3,
     erosion4,
-    reduce, // 19
+    erosion5,
+    reduce, // 20
 };
 
 pub const ComputeOperatorId = enum(u32) {
@@ -53,8 +54,8 @@ pub const ComputeInfo = extern struct {
     compute_sequence_length: u32 = 1,
     compute_iterations: u32 = 1,
     compute_operator_id: ComputeOperatorId = .none,
-    in_buffers: [8]ComputeBuffer,
-    out_buffers: [8]ComputeBuffer,
+    in_buffers: [16]ComputeBuffer,
+    out_buffers: [16]ComputeBuffer,
     in_count: u32,
     out_count: u32,
     data: [*c]const u8,

@@ -34,17 +34,37 @@
 //
 //////////////////////////////
 // STEP 4:
-// Update droplets
+// Calculate droplet update
 // add energy based on height difference
 // evaporate
 // merge droplets
 //
 //                              Self  Neighbours
 // droplet_positions_new          R       R
-// droplet_positions              W       W
-// droplet_energies               W       W
-// droplet_sizes                  W       W
-// droplet_sediment               W       W
+// droplet_positions              W       R            !!!
+// droplet_energies               R       R
+// droplet_sizes                  R       R
+// droplet_sediment               R       R
+// droplet_positions_new          W       -
+// droplet_energies_new           W       -
+// droplet_sizes_new              W       -
+// droplet_sediment_new           W       -
+//////////////////////////////
+
+//////////////////////////////
+// STEP 4:
+// Apply droplet update
+//
+//                              Self  Neighbours
+// droplet_positions_new          R       -
+// droplet_energies_new           R       -
+// droplet_sizes_new              R       -
+// droplet_sediment_new           R       -
+// droplet_positions_new          R       -
+// droplet_positions              W       -
+// droplet_energies               W       -
+// droplet_sizes                  W       -
+// droplet_sediment               W       -
 //////////////////////////////
 
 
@@ -83,12 +103,15 @@ cbuffer constant_buffer_0 : register(b0)
 
 StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
-RWStructuredBuffer<float2> g_output_buffer_droplet_positions : register(u1);
-RWStructuredBuffer<float> g_output_buffer_droplet_energies : register(u2);
-RWStructuredBuffer<float> g_output_buffer_droplet_sizes : register(u3);
-RWStructuredBuffer<float> g_output_buffer_droplet_sediment : register(u4);
-RWStructuredBuffer<float> g_output_buffer_inflow : register(u5);
-RWStructuredBuffer<float2> g_output_buffer_droplet_positions_new : register(u6);
+RWStructuredBuffer<float2> g_output_buffer_droplet_positions : register(u1); 
+RWStructuredBuffer<float> g_output_buffer_droplet_energies : register(u2); 
+RWStructuredBuffer<float> g_output_buffer_droplet_sizes : register(u3); 
+RWStructuredBuffer<float> g_output_buffer_droplet_sediment : register(u4); 
+RWStructuredBuffer<float> g_output_buffer_inflow : register(u5); 
+RWStructuredBuffer<float2> g_output_buffer_droplet_positions_new : register(u6); 
+RWStructuredBuffer<float> g_output_buffer_droplet_energies_new : register(u7); 
+RWStructuredBuffer<float> g_output_buffer_droplet_sizes_new : register(u8); 
+RWStructuredBuffer<float> g_output_buffer_droplet_sediment_new : register(u9); 
 
 float rand2dTo1d(float2 value, float2 dotDir = float2(12.9898, 78.233)){
 	float2 smallValue = sin(value);

@@ -18,6 +18,9 @@ RWStructuredBuffer<float> g_output_buffer_droplet_sizes : register(u3);
 RWStructuredBuffer<float> g_output_buffer_droplet_sediment : register(u4); 
 RWStructuredBuffer<float> g_output_buffer_inflow : register(u5); 
 RWStructuredBuffer<float2> g_output_buffer_droplet_positions_new : register(u6); 
+RWStructuredBuffer<float> g_output_buffer_droplet_energies_new : register(u7); 
+RWStructuredBuffer<float> g_output_buffer_droplet_sizes_new : register(u8); 
+RWStructuredBuffer<float> g_output_buffer_droplet_sediment_new : register(u9); 
 
 float height_at_pos(uint x, uint y, float2 droplet_pos) {
     const uint index_bl = x + 0 + (y + 0) * g_in_buffer_width;

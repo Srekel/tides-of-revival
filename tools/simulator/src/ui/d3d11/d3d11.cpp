@@ -163,7 +163,9 @@ bool D3D11::create_device(HWND hwnd)
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/erosion3.hlsl", "CSErosion_3_move_sediment", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
-    compile_compute_shader(L"shaders/erosion4.hlsl", "CSErosion_4_update_droplets", nullptr, &m_compute_shaders[m_compute_shader_count]);
+    compile_compute_shader(L"shaders/erosion4.hlsl", "CSErosion_4_calculate_droplets", nullptr, &m_compute_shaders[m_compute_shader_count]);
+    m_compute_shader_count++;
+    compile_compute_shader(L"shaders/erosion5.hlsl", "CSErosion_5_apply_droplets", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
 
     assert(m_compute_shader_count + 10 < 32);
@@ -511,9 +513,9 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
     size_t shader_settings_size = job.shader_settings_size;
 
     ID3D11Buffer *shader_settings_buffer = nullptr;
-    ID3D11Buffer *input_buffers[8];
-    ID3D11Buffer *output_buffers[8];
-    ID3D11Buffer *readback_buffers[8];
+    ID3D11Buffer *input_buffers[16];
+    ID3D11Buffer *output_buffers[16];
+    ID3D11Buffer *readback_buffers[16];
 
     create_constant_buffer(shader_settings_size, shader_settings, "User CB", &shader_settings_buffer);
     for (unsigned i_buf = 0; i_buf < job.in_count; i_buf++)
@@ -535,8 +537,8 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
 
     assert(shader_settings_buffer);
 
-    ID3D11ShaderResourceView *input_buffers_srv[8];
-    ID3D11UnorderedAccessView *output_buffers_uav[8];
+    ID3D11ShaderResourceView *input_buffers_srv[16];
+    ID3D11UnorderedAccessView *output_buffers_uav[16];
 
     for (unsigned i_buf = 0; i_buf < job.in_count; i_buf++)
     {
