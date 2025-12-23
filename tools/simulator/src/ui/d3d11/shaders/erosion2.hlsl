@@ -89,7 +89,7 @@ float length_squared(float2 vec) {
     float total_inflow = 0;
     float max_inflow = 100000;
     
-    const uint inflow_base_index = DTid.x * 8 + DTid.y * 8 * g_in_buffer_width;
+    const uint inflow_base_index = DTid.x * 9 + DTid.y * 9 * g_in_buffer_width;
     const uint inflow_offset_index = 0;
     for (uint yy = 0; yy <= 2; yy++) {
         for (uint xx = 0; xx <= 2; xx++) {
@@ -101,7 +101,7 @@ float length_squared(float2 vec) {
                 // CORRECT?!
                 // Probably not
                 // remember 8 -> 9
-                continue;
+                // continue;
             }
 
             const uint inflow_index = inflow_base_index + inflow_offset_index;

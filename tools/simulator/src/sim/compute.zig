@@ -72,7 +72,7 @@ pub fn compute_f32_n_typed(compute_id: graph.ComputeId, images_in: []*types.Imag
         else => 1,
     };
     const compute_iterations: u32 = switch (compute_id) {
-        .erosion1 => 15,
+        .erosion1 => 10,
         else => 1,
     };
 
@@ -418,10 +418,10 @@ pub fn remapCurve(image_in: *types.ImageF32, curve: []const types.Vec2, image_ou
 const ErosionSettings = extern struct {
     width: u32,
     height: u32,
-    sediment_capacity: f32 = 0.1,
+    sediment_capacity: f32 = 5,
     droplet_max_sediment: f32 = 200,
     deposit_speed: f32 = 0.5,
-    erosion_speed: f32 = 0.1,
+    erosion_speed: f32 = 5,
     evaporation: f32 = 0.95,
     momentum: f32 = 0.1,
 };
@@ -446,7 +446,7 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void 
 
     var droplets = makeImage(erosion_data.width * ErosionDroplet.float_count, erosion_data.height);
     var droplets_new = makeImage(erosion_data.width * ErosionDroplet.float_count, erosion_data.height);
-    var inflow = makeImage(erosion_data.width * 8, erosion_data.height);
+    var inflow = makeImage(erosion_data.width * 9, erosion_data.height);
     defer std.heap.c_allocator.free(droplets.pixels);
     defer std.heap.c_allocator.free(droplets_new.pixels);
     defer std.heap.c_allocator.free(inflow.pixels);

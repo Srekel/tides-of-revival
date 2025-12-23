@@ -39,7 +39,7 @@ RWStructuredBuffer<float> g_output_buffer_inflow : register(u3);
     }
     
     const uint index_self = DTid.x + DTid.y * g_in_buffer_width;
-    const uint inflow_base_index = DTid.x * 8 + DTid.y * 8 * g_in_buffer_width;
+    const uint inflow_base_index = DTid.x * 9 + DTid.y * 9 * g_in_buffer_width;
     const uint inflow_offset_index = 0;
 
     float total_flow = 0;
@@ -50,9 +50,9 @@ RWStructuredBuffer<float> g_output_buffer_inflow : register(u3);
             const uint x = DTid.x + xx - 1;
             const uint y = DTid.y + yy - 1;
             // g_output_buffer_heightmap[index_self] = 1000;
-            if (x == DTid.x && y == DTid.y) {
-                continue;
-            }
+            // if (x == DTid.x && y == DTid.y) {
+            //     continue;
+            // }
 
             ////////////////////////////////////////////////////////////
             // Do the inflow (to self)

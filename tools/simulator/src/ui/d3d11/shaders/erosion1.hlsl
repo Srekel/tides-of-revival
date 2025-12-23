@@ -149,14 +149,16 @@ float2 rand2dTo2d(float2 value) {
     if (g_output_buffer_heightmap[index_in] == 0) {
         g_output_buffer_heightmap[index_in] = g_input_buffer_heightmap[index_in];
         g_output_buffer_droplets[index_in].energy = 1;
+
+        if (rand2dTo1d(float2(DTid.x, DTid.y)) > 0.99) {
+            const float rain_amount = 1;
+            const float total_size = g_output_buffer_droplets[index_in].size + rain_amount;
+
+            const float2 pos_prev = g_output_buffer_droplets[index_in].position;
+            const float2 pos_new = rand2dTo2d(float2(DTid.x, DTid.y));
+
+            g_output_buffer_droplets[index_in].position = lerp(pos_prev, pos_new, rain_amount / total_size);
+            g_output_buffer_droplets[index_in].size = total_size;
+        }
     }
-
-    const float rain_amount = 1;
-    const float total_size = g_output_buffer_droplets[index_in].size + rain_amount;
-
-    const float2 pos_prev = g_output_buffer_droplets[index_in].position;
-    const float2 pos_new = rand2dTo2d(float2(DTid.x, DTid.y));
-
-    g_output_buffer_droplets[index_in].position = lerp(pos_prev, pos_new, rain_amount / total_size);
-    g_output_buffer_droplets[index_in].size = total_size;
 }
