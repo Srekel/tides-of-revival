@@ -418,10 +418,10 @@ pub fn remapCurve(image_in: *types.ImageF32, curve: []const types.Vec2, image_ou
 const ErosionSettings = extern struct {
     width: u32,
     height: u32,
-    sediment_capacity: f32 = 5,
+    sediment_capacity: f32 = 50,
     droplet_max_sediment: f32 = 200,
     deposit_speed: f32 = 0.5,
-    erosion_speed: f32 = 5,
+    erosion_speed: f32 = 50,
     evaporation: f32 = 0.95,
     momentum: f32 = 0.1,
 };
@@ -480,6 +480,7 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void 
 
     heightmap.swap(scratch_image);
     nodes.math.rerangify(heightmap);
+    types.saveImageF32(heightmap.*, "heightmap", false);
 
     // nodes.math.rerangify(&energies);
     // types.saveImageF32(energies, "energies", false);

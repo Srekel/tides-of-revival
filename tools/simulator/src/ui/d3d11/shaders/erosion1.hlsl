@@ -8,6 +8,7 @@
 //                              Self  Neighbours
 // droplet_sizes                  W       -
 // droplet_positions              W       -
+// droplet_energies               W       -
 //
 //////////////////////////////
 // STEP 2:
@@ -67,7 +68,6 @@
 // droplet_sediment               W       -
 //////////////////////////////
 
-
 // g_output_buffer_heightmap
 // world space
 //
@@ -101,7 +101,8 @@ cbuffer constant_buffer_0 : register(b0)
     float g_momentum;
 };
 
-struct Droplet {
+struct Droplet
+{
     float size;
     float energy;
     float sediment;
@@ -113,22 +114,23 @@ struct Droplet {
 
 StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
-RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1); 
-RWStructuredBuffer<Droplet> g_output_buffer_droplets_new : register(u2); 
-RWStructuredBuffer<float> g_output_buffer_inflow : register(u3); 
+RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1);
+RWStructuredBuffer<Droplet> g_output_buffer_droplets_new : register(u2);
+RWStructuredBuffer<float> g_output_buffer_inflow : register(u3);
 
-float rand2dTo1d(float2 value, float2 dotDir = float2(12.9898, 78.233)){
-	float2 smallValue = sin(value);
-	float random = dot(smallValue, dotDir);
-	random = frac(sin(random) * 143758.5453);
-	return random;
+float rand2dTo1d(float2 value, float2 dotDir = float2(12.9898, 78.233))
+{
+    float2 smallValue = sin(value);
+    float random = dot(smallValue, dotDir);
+    random = frac(sin(random) * 143758.5453);
+    return random;
 }
 
-float2 rand2dTo2d(float2 value) {
-	return float2(
-		rand2dTo1d(value, float2(12.989, 78.233)),
-		rand2dTo1d(value, float2(39.346, 11.135))
-	);
+float2 rand2dTo2d(float2 value)
+{
+    return float2(
+        rand2dTo1d(value, float2(12.989, 78.233)),
+        rand2dTo1d(value, float2(39.346, 11.135)));
 }
 
 [numthreads(32, 32, 1)] void CSErosion_1_rain(uint3 DTid : SV_DispatchThreadID)
@@ -146,11 +148,14 @@ float2 rand2dTo2d(float2 value) {
     }
 
     // Initialize first time
-    if (g_output_buffer_heightmap[index_in] == 0) {
+    if (g_output_buffer_heightmap[index_in] == 0)
+    {
         g_output_buffer_heightmap[index_in] = g_input_buffer_heightmap[index_in];
-        g_output_buffer_droplets[index_in].energy = 1;
 
-        if (rand2dTo1d(float2(DTid.x, DTid.y)) > 0.99) {
+        if (rand2dTo1d(float2(DTid.x, DTid.y)) > 0.99)
+        {
+            g_output_buffer_droplets[index_in].energy = 1;
+
             const float rain_amount = 1;
             const float total_size = g_output_buffer_droplets[index_in].size + rain_amount;
 
