@@ -165,8 +165,8 @@ bool D3D11::create_device(HWND hwnd)
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/erosion4.hlsl", "CSErosion_4_calculate_droplets", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
-    compile_compute_shader(L"shaders/erosion5.hlsl", "CSErosion_5_apply_droplets", nullptr, &m_compute_shaders[m_compute_shader_count]);
-    m_compute_shader_count++;
+    // compile_compute_shader(L"shaders/erosion5.hlsl", "CSErosion_5_apply_droplets", nullptr, &m_compute_shaders[m_compute_shader_count]);
+    // m_compute_shader_count++;
 
     assert(m_compute_shader_count + 10 < 32);
 

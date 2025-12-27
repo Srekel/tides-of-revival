@@ -10,7 +10,8 @@ cbuffer constant_buffer_0 : register(b0)
     float g_momentum;
 };
 
-struct Droplet {
+struct Droplet
+{
     float size;
     float energy;
     float sediment;
@@ -22,24 +23,10 @@ struct Droplet {
 
 StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
-RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1); 
-RWStructuredBuffer<Droplet> g_output_buffer_droplets_new : register(u2); 
-RWStructuredBuffer<float> g_output_buffer_inflow : register(u3); 
-
-float height_at_pos(uint x, uint y, float2 droplet_pos) {
-    const uint index_bl = x + 0 + (y + 0) * g_in_buffer_width;
-    const uint index_br = x + 1 + (y + 0) * g_in_buffer_width;
-    const uint index_tl = x + 0 + (y + 1) * g_in_buffer_width;
-    const uint index_tr = x + 1 + (y + 1) * g_in_buffer_width;
-    const float height_bl = g_output_buffer_heightmap[index_bl];
-    const float height_br = g_output_buffer_heightmap[index_br];
-    const float height_tl = g_output_buffer_heightmap[index_tl];
-    const float height_tr = g_output_buffer_heightmap[index_tr];
-    const float height_bot = lerp(height_bl, height_br, droplet_pos.x);
-    const float height_top = lerp(height_tl, height_tr, droplet_pos.x);
-    const float height = lerp(height_bot, height_top, droplet_pos.y);
-    return height;
-}
+RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1);
+RWStructuredBuffer<Droplet> g_output_buffer_droplets_next : register(u2);
+RWStructuredBuffer<float> g_output_buffer_inflow : register(u3);
+RWStructuredBuffer<float> g_output_buffer_debug : register(u4);
 
 [numthreads(32, 32, 1)] void CSErosion_4_calculate_droplets(uint3 DTid : SV_DispatchThreadID)
 {
@@ -52,65 +39,48 @@ float height_at_pos(uint x, uint y, float2 droplet_pos) {
     {
         return;
     }
-    
-    // Loop over neighbors
-    // old = where it came from (neighbor)
-    // new = where it ended up (either self or ignored)
-    const uint index_self = DTid.x + DTid.y * g_in_buffer_width;
-    const uint index_new = index_self;
-    const float2 droplet_pos_self = g_output_buffer_droplets[index_self].position;
 
-    // Assume all water flowed away
-    // TODO: Account for droplets staying..?
-    // Noooo can't do this here fffffffffffffffuuuuuuuuuuuuuuuuuuuu
-    // g_output_buffer_droplets[index_new].size = 0;
-    
-    for (uint yy = 0; yy <= 2; yy++) {
-        for (uint xx = 0; xx <= 2; xx++) {
+    const uint index_self = DTid.x + DTid.y * g_in_buffer_width;
+
+    Droplet self_curr_droplet = g_output_buffer_droplets[index_self];
+    const Droplet self_next_droplet = g_output_buffer_droplets_next[index_self];
+
+    // const uint inflow_base_index = DTid.x * 9 + DTid.y * 9 * g_in_buffer_width;
+    // const uint inflow_offset_index = 0;
+
+    // float total_flow = 0;
+    // for (uint y = DTid.y - 1; y <= DTid.y + 1; y++) {
+    //     for (uint x = DTid.x - 1; x <= DTid.x + 1; x++) {
+    for (uint yy = 0; yy <= 2; yy++)
+    {
+        for (uint xx = 0; xx <= 2; xx++)
+        {
             const uint x = DTid.x + xx - 1;
             const uint y = DTid.y + yy - 1;
-            const uint index_old = x + y * g_in_buffer_width;
+            const uint index_nbor = x + y * g_in_buffer_width;
+            const Droplet nbor_curr_droplet = g_output_buffer_droplets_next[index_nbor];
+            const Droplet nbor_next_droplet = g_output_buffer_droplets_next[index_nbor];
+            const uint nbor_next_pos_world_x = uint(floor(nbor_next_droplet.position.x));
+            const uint nbor_next_pos_world_y = uint(floor(nbor_next_droplet.position.y));
 
-            const float2 droplet_pos_new = g_output_buffer_droplets_new[index_old].position; // world space
-            const uint droplet_pos_new_x = uint(floor(droplet_pos_new.x));
-            const uint droplet_pos_new_y = uint(floor(droplet_pos_new.y));
-            if (droplet_pos_new_x == DTid.x && droplet_pos_new_y == DTid.y) {
-                // Droplet from neighbor ended up here in self
-                float size_old = g_output_buffer_droplets[index_old].size;
-                float size_new = g_output_buffer_droplets[index_new].size;
-                float size_total = size_old + size_new;
-
-                // Position
-                const float2 droplet_pos_new_offset = float2(droplet_pos_new.x - droplet_pos_new_x, droplet_pos_new.y - droplet_pos_new_y);
-                const float droplet_pos = lerp(droplet_pos_self, droplet_pos_new_offset, size_new / size_total);
-                g_output_buffer_droplets[index_new].position = droplet_pos_new_offset;
-
-                // Energy
-                const float2 droplet_pos_old = g_output_buffer_droplets[index_old].position;
-                const float height_old = height_at_pos(x, y, droplet_pos_old);
-                const float height_new = height_at_pos(DTid.x, DTid.y, droplet_pos_new_offset);
-                const float height_difference = height_old - height_new;
-                const float energy_old = g_output_buffer_droplets[index_old].energy;
-                float energy = g_output_buffer_droplets[index_new].energy;
-                if (height_difference >= 0) {
-                    // Tried to go upwards
-                    energy = 0;
-                }
-                else {
-                    const float gravity = 1;
-                    energy -= height_difference * gravity;
-                }
-                
-                energy = lerp(energy_old, energy, size_new / size_total);
-                g_output_buffer_droplets_new[index_new].energy = energy;
-
-                // Size
-                size_total *= g_evaporation;
-                g_output_buffer_droplets_new[index_new].size = size_total;
-
-                // Sediment
-                g_output_buffer_droplets_new[index_new].sediment += g_output_buffer_droplets[index_old].sediment;
+            if (nbor_next_pos_world_x != x || nbor_next_pos_world_y != y)
+            {
+                // Neighbor didn't flow into self
+                continue;
             }
+
+            const float nbor_size = nbor_next_droplet.size;
+            const float total_size = nbor_size + self_curr_droplet.size;
+            const float lerp_t = nbor_size / total_size;
+            const float2 nbor_next_pos = float2(
+                nbor_next_droplet.position.x - nbor_next_pos_world_x,
+                nbor_next_droplet.position.y - nbor_next_pos_world_y);
+            self_curr_droplet.position = lerp(self_curr_droplet.position, nbor_next_pos, lerp_t);
+            self_curr_droplet.energy = lerp(self_curr_droplet.energy, nbor_next_droplet.energy, lerp_t);
+            self_curr_droplet.size += nbor_next_droplet.size;
+            self_curr_droplet.sediment += nbor_next_droplet.sediment;
         }
     }
+
+    g_output_buffer_droplets[index_self] = self_curr_droplet;
 }

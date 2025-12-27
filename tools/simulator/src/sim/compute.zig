@@ -68,11 +68,11 @@ pub fn compute_f32_n(compute_id: graph.ComputeId, images_in: []*types.ImageF32, 
 
 pub fn compute_f32_n_typed(compute_id: graph.ComputeId, images_in: []*types.ImageF32, images_out: []*types.ImageF32, out_buffer_types: []const graph.ComputeBufferType, data: anytype) void {
     const compute_sequence_length: u32 = switch (compute_id) {
-        .erosion1 => 5,
+        .erosion1 => 4,
         else => 1,
     };
     const compute_iterations: u32 = switch (compute_id) {
-        .erosion1 => 10,
+        .erosion1 => 4,
         else => 1,
     };
 
@@ -447,14 +447,17 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void 
     var droplets = makeImage(erosion_data.width * ErosionDroplet.float_count, erosion_data.height);
     var droplets_new = makeImage(erosion_data.width * ErosionDroplet.float_count, erosion_data.height);
     var inflow = makeImage(erosion_data.width * 9, erosion_data.height);
+    var debug = makeImage(erosion_data.width, erosion_data.height);
     defer std.heap.c_allocator.free(droplets.pixels);
     defer std.heap.c_allocator.free(droplets_new.pixels);
     defer std.heap.c_allocator.free(inflow.pixels);
+    defer std.heap.c_allocator.free(debug.pixels);
 
     scratch_image.zeroClear();
     droplets.zeroClear();
     droplets_new.zeroClear();
     inflow.zeroClear();
+    debug.zeroClear();
 
     var in_buffers = [_]*types.ImageF32{heightmap};
     var out_buffers = [_]*types.ImageF32{
@@ -462,9 +465,11 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void 
         &droplets,
         &droplets_new,
         &inflow,
+        &debug,
     };
 
     const out_buffer_types = [_]graph.ComputeBufferType{
+        .float,
         .float,
         .float,
         .float,
@@ -478,9 +483,13 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void 
         erosion_data,
     );
 
+    types.saveImageF32(heightmap.*, "erosion_heightmap_prev", false);
     heightmap.swap(scratch_image);
     nodes.math.rerangify(heightmap);
-    types.saveImageF32(heightmap.*, "heightmap", false);
+    types.saveImageF32(heightmap.*, "erosion_heightmap_next", false);
+
+    nodes.math.rerangify(&debug);
+    types.saveImageF32(debug, "erosion_debug", false);
 
     // nodes.math.rerangify(&energies);
     // types.saveImageF32(energies, "energies", false);

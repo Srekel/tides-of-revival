@@ -115,8 +115,9 @@ struct Droplet
 StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
 RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1);
-RWStructuredBuffer<Droplet> g_output_buffer_droplets_new : register(u2);
+RWStructuredBuffer<Droplet> g_output_buffer_droplets_next : register(u2);
 RWStructuredBuffer<float> g_output_buffer_inflow : register(u3);
+RWStructuredBuffer<float> g_output_buffer_debug : register(u4);
 
 float rand2dTo1d(float2 value, float2 dotDir = float2(12.9898, 78.233))
 {
@@ -135,7 +136,7 @@ float2 rand2dTo2d(float2 value)
 
 [numthreads(32, 32, 1)] void CSErosion_1_rain(uint3 DTid : SV_DispatchThreadID)
 {
-    const uint index_in = DTid.x + DTid.y * g_in_buffer_width;
+    const uint index_self = DTid.x + DTid.y * g_in_buffer_width;
 
     // Skip edges
     const uint range = 2;
@@ -144,26 +145,36 @@ float2 rand2dTo2d(float2 value)
         DTid.y <= range + 1 ||
         DTid.y >= g_in_buffer_height - range - 2)
     {
+        g_output_buffer_debug[index_self] = DTid.x % 2 == 0 ? 0 : 255;
         return;
     }
 
     // Initialize first time
-    if (g_output_buffer_heightmap[index_in] == 0)
+    if (g_output_buffer_heightmap[index_self] == 0)
     {
-        g_output_buffer_heightmap[index_in] = g_input_buffer_heightmap[index_in];
+        const float height = g_input_buffer_heightmap[index_self];
+        g_output_buffer_heightmap[index_self] = height;
+        g_output_buffer_debug[index_self] = 255;
 
-        if (rand2dTo1d(float2(DTid.x, DTid.y)) > 0.99)
+        if (height > 100 && rand2dTo1d(float2(DTid.x, DTid.y)) > 0.99)
         {
-            g_output_buffer_droplets[index_in].energy = 1;
-
             const float rain_amount = 1;
-            const float total_size = g_output_buffer_droplets[index_in].size + rain_amount;
+            const float total_size = g_output_buffer_droplets[index_self].size + rain_amount;
 
-            const float2 pos_prev = g_output_buffer_droplets[index_in].position;
+            const float2 pos_prev = g_output_buffer_droplets[index_self].position;
             const float2 pos_new = rand2dTo2d(float2(DTid.x, DTid.y));
 
-            g_output_buffer_droplets[index_in].position = lerp(pos_prev, pos_new, rain_amount / total_size);
-            g_output_buffer_droplets[index_in].size = total_size;
+            g_output_buffer_droplets[index_self].position = lerp(pos_prev, pos_new, rain_amount / total_size);
+            g_output_buffer_droplets[index_self].size = total_size;
+            g_output_buffer_droplets[index_self].energy = 1;
+            g_output_buffer_debug[index_self] = 200;
         }
     }
+
+    Droplet next_droplet = g_output_buffer_droplets_next[index_self];
+    next_droplet.position = float2(0, 0);
+    next_droplet.sediment = 0;
+    next_droplet.energy = 0;
+    next_droplet.size = 0;
+    g_output_buffer_droplets_next[index_self] = next_droplet;
 }

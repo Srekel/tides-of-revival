@@ -10,7 +10,8 @@ cbuffer constant_buffer_0 : register(b0)
     float g_momentum;
 };
 
-struct Droplet {
+struct Droplet
+{
     float size;
     float energy;
     float sediment;
@@ -22,9 +23,10 @@ struct Droplet {
 
 StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
-RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1); 
-RWStructuredBuffer<Droplet> g_output_buffer_droplets_new : register(u2); 
-RWStructuredBuffer<float> g_output_buffer_inflow : register(u3); 
+RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1);
+RWStructuredBuffer<Droplet> g_output_buffer_droplets_next : register(u2);
+RWStructuredBuffer<float> g_output_buffer_inflow : register(u3);
+RWStructuredBuffer<float> g_output_buffer_debug : register(u4);
 
 [numthreads(32, 32, 1)] void CSErosion_3_move_sediment(uint3 DTid : SV_DispatchThreadID)
 {
@@ -37,52 +39,53 @@ RWStructuredBuffer<float> g_output_buffer_inflow : register(u3);
     {
         return;
     }
-    
-    const uint index_self = DTid.x + DTid.y * g_in_buffer_width;
-    const uint inflow_base_index = DTid.x * 9 + DTid.y * 9 * g_in_buffer_width;
-    const uint inflow_offset_index = 0;
 
-    float total_flow = 0;
+    const uint index_self = DTid.x + DTid.y * g_in_buffer_width;
+
+    const Droplet self_curr_droplet = g_output_buffer_droplets[index_self];
+    const Droplet self_next_droplet = g_output_buffer_droplets_next[index_self];
+
+    const float height_diff = self_curr_droplet.sediment - self_next_droplet.sediment;
+    const float height = g_output_buffer_heightmap[index_self];
+    g_output_buffer_heightmap[index_self] = max(0, height + height_diff);
+
+    // const uint inflow_base_index = DTid.x * 9 + DTid.y * 9 * g_in_buffer_width;
+    // const uint inflow_offset_index = 0;
+
+    // float total_flow = 0;
     // for (uint y = DTid.y - 1; y <= DTid.y + 1; y++) {
     //     for (uint x = DTid.x - 1; x <= DTid.x + 1; x++) {
-    for (uint yy = 0; yy <= 2; yy++) {
-        for (uint xx = 0; xx <= 2; xx++) {
-            const uint x = DTid.x + xx - 1;
-            const uint y = DTid.y + yy - 1;
-            // g_output_buffer_heightmap[index_self] = 1000;
-            // if (x == DTid.x && y == DTid.y) {
-            //     continue;
-            // }
+    // float height_change_total = 0;
+    // for (uint yy = 0; yy <= 2; yy++)
+    // {
+    //     for (uint xx = 0; xx <= 2; xx++)
+    //     {
+    //         const uint x = DTid.x + xx - 1;
+    //         const uint y = DTid.y + yy - 1;
+    //         const uint index_nbor = x + y * g_in_buffer_width;
+    //         const Droplet nbor_curr_droplet = g_output_buffer_droplets_next[index_nbor];
+    //         const Droplet nbor_next_droplet = g_output_buffer_droplets_next[index_nbor];
+    //         const uint nbor_next_pos_world_x = uint(floor(next_pos_world.x));
+    //         const uint nbor_next_pos_world_y = uint(floor(next_pos_world.y));
 
-            ////////////////////////////////////////////////////////////
-            // Do the inflow (to self)
-            const uint index_neighbor = x + y * g_in_buffer_width;
-            const uint inflow_index = inflow_base_index + inflow_offset_index;
-            const float inflow = g_output_buffer_inflow[inflow_index];
-            const float droplet_sediment = g_output_buffer_droplets[index_neighbor].sediment;
-            if (inflow > 0) {
-                // Pick up sediment
-                const float sediment_to_pick_up = min(g_droplet_max_sediment - droplet_sediment, inflow);
-                g_output_buffer_heightmap[index_neighbor] -= min(g_output_buffer_heightmap[index_neighbor], sediment_to_pick_up);
-                g_output_buffer_droplets[index_neighbor].sediment += sediment_to_pick_up;
-                // g_output_buffer_heightmap[index_neighbor] = 100;
-            }
-            else if (inflow < 0) {
-                // Drop off sediment
-                const float sediment_to_drop = min(droplet_sediment, -inflow);
-                g_output_buffer_heightmap[index_neighbor] += sediment_to_drop;
-                g_output_buffer_droplets[index_neighbor].sediment -= sediment_to_drop;
-                // g_output_buffer_heightmap[index_neighbor] = 10;
-            }
-            // else {
-            //     g_output_buffer_heightmap[index_neighbor] = 50;
-            // }
+    //         if (uint(floor(nbor_next_droplet.position.x)) != x || uint(floor(nbor_next_droplet.position.y)) != y)
+    //         {
+    //             // Neighbor didn't flow into self
+    //             continue;
+    //         }
 
-            inflow_offset_index += 1;
-        }
-    }
+    //         // float height_change = nbor_next_droplet.sediment
 
-    // TODO: "The height change is applied to the terrain through bilinear 
+    //         // const float nbor_size = nbor_next_droplet.size;
+    //         // const float total_size = nbor_size + self_next_droplet.size - self_curr_droplet.size;
+    //         // self_curr_droplet.position = lerp(self_curr_droplet.position, nbor_next_droplet.position, nbor_size / total_size);
+    //         // self_curr_droplet.energy += nbor_next_droplet.energy;
+    //         // self_curr_droplet.size += nbor_next_droplet.size;
+    //         // self_curr_droplet.sediment += nbor_next_droplet.sediment;
+    //     }
+    // }
+
+    // TODO: "The height change is applied to the terrain through bilinear
     // interpolation, depending on the droplet’s position within its cell."
 
     // float height = g_output_buffer_heightmap[index_self];

@@ -24,8 +24,9 @@ struct Droplet
 StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
 RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1);
-RWStructuredBuffer<Droplet> g_output_buffer_droplets_new : register(u2);
+RWStructuredBuffer<Droplet> g_output_buffer_droplets_next : register(u2);
 RWStructuredBuffer<float> g_output_buffer_inflow : register(u3);
+RWStructuredBuffer<float> g_output_buffer_debug : register(u4);
 
 float height_at_pos(uint x, uint y, float2 droplet_pos)
 {
@@ -81,122 +82,96 @@ float length_squared(float2 vec)
         DTid.y <= range + 1 ||
         DTid.y >= g_in_buffer_height - range - 2)
     {
-        const uint index_in = DTid.x + DTid.y * g_in_buffer_width;
-        // g_output_buffer_heightmap[index_in] = 1000;
+        const uint index_self = DTid.x + DTid.y * g_in_buffer_width;
+        // g_output_buffer_heightmap[index_self] = 1000;
         return;
     }
 
     // TODO: Distinguise between sediment and erosion
     // TODO: Momentum
 
-    const uint index_in = DTid.x + DTid.y * g_in_buffer_width;
-    float total_inflow = 0;
-    float max_inflow = 100000;
+    const uint index_self = DTid.x + DTid.y * g_in_buffer_width;
 
-    const uint inflow_base_index = DTid.x * 9 + DTid.y * 9 * g_in_buffer_width;
-    const uint inflow_offset_index = 0;
-    for (uint yy = 0; yy <= 2; yy++)
+    const Droplet curr_droplet = g_output_buffer_droplets[index_self];
+    Droplet next_droplet = g_output_buffer_droplets_next[index_self];
+
+    const float curr_size = curr_droplet.size;
+    if (curr_size == 0)
     {
-        for (uint xx = 0; xx <= 2; xx++)
-        {
-            const uint x = DTid.x + xx - 1;
-            const uint y = DTid.y + yy - 1;
-            // for (uint y = DTid.y - 1; y <= DTid.y + 1; y++) {
-            //     for (uint x = DTid.x - 1; x <= DTid.x + 1; x++) {
-            if (x == DTid.x && y == DTid.y)
-            {
-                // CORRECT?!
-                // Probably not
-                // remember 8 -> 9
-                // continue;
-            }
-
-            const uint inflow_index = inflow_base_index + inflow_offset_index;
-            g_output_buffer_inflow[inflow_index] = 0;
-            inflow_offset_index += 1;
-
-            const uint droplet_index = x + y * g_in_buffer_width;
-            const float size = g_output_buffer_droplets[droplet_index].size;
-            if (size == 0)
-            {
-                continue;
-            }
-
-            const float2 droplet_pos = g_output_buffer_droplets[droplet_index].position;
-
-            float droplet_height = 0;
-            const float2 gradient = height_gradient_at_pos(x, y, droplet_pos, droplet_height);
-            if (length_squared(gradient) < 0.001)
-            {
-                continue;
-            }
-
-            const float2 gradient_01 = normalize(gradient);
-            const float2 cell_pos = float2(x, y);
-            const float2 target_pos = cell_pos + droplet_pos + gradient_01;
-            const uint target_x = uint(floor(target_pos.x));
-            const uint target_y = uint(floor(target_pos.y));
-            if (target_x == DTid.x && target_y == DTid.y)
-            {
-                // g_output_buffer_heightmap[index_in] = 1000;
-
-                // store new pos in world space
-                g_output_buffer_droplets_new[droplet_index].position = target_pos;
-
-                const float2 droplet_pos_new = float2(target_pos.x - DTid.x, target_pos.y - DTid.y);
-                const float target_height = height_at_pos(DTid.x, DTid.y, droplet_pos_new);
-                const float height_difference = target_height - droplet_height;
-                const bool flowing_downhill = height_difference < 0;
-
-                const float current_carrying = g_output_buffer_droplets[droplet_index].sediment;
-                const float max_terrain_shift = abs(height_difference * 0.5); // 0.5 not strictly necessary?
-
-                const float energy = g_output_buffer_droplets[droplet_index].energy;
-                const float sediment_carrying_capacity = flowing_downhill ? -height_difference * size * energy * g_sediment_capacity_factor : 0;
-
-                if (current_carrying < sediment_carrying_capacity && flowing_downhill)
-                {
-                    // Inflow
-                    // Droplet can pick up more sediment from the neighboring cell
-                    const float remaining_sediment_capacity_in_droplet = g_droplet_max_sediment - current_carrying;
-                    const float to_pick_up_optimal = g_erosion_speed * (sediment_carrying_capacity - current_carrying);
-                    float to_pick_up = min(remaining_sediment_capacity_in_droplet, to_pick_up_optimal);
-
-                    // Don't flip heights
-                    to_pick_up = min(to_pick_up, max_terrain_shift);
-
-                    // Need to ensure TOTAL inflow will not flip heights
-                    max_inflow = min(max_inflow, max_terrain_shift);
-                    total_inflow += to_pick_up;
-
-                    // May get reduced later by total inflow
-                    g_output_buffer_inflow[inflow_index] = to_pick_up;
-                }
-                else if (current_carrying > sediment_carrying_capacity)
-                {
-                    // Full, drop some at the neighboring cell
-                    float to_drop = min(current_carrying, current_carrying - sediment_carrying_capacity);
-
-                    // Don't flip heights
-                    to_drop = min(to_drop, max_terrain_shift);
-
-                    // Gotta be negative
-                    to_drop = -to_drop;
-
-                    // Will not be reduced
-                    g_output_buffer_inflow[inflow_index] = to_drop;
-                }
-            }
-        }
+        // g_output_buffer_debug[index_self] = 10;
+        return;
     }
 
-    // if (total_inflow > 0) {
-    //     const float carry_divisor = max_inflow * rcp(total_inflow);
-    //     for (uint i_flow = 0; i_flow < 8; i_flow++) {
-    //         const float inflow = g_output_buffer_inflow[inflow_base_index + index_in];
-    //         if (inflow > 0) {
-    //             g_output_buffer_inflow[inflow_base_index + index_in] *= carry_divisor;
-    //         }
-    //     }
-    // }
+    float curr_droplet_height = 0;
+    float next_droplet_height = 0;
+    const float2 curr_gradient = height_gradient_at_pos(DTid.x, DTid.y, curr_droplet.position, curr_droplet_height);
+    if (length_squared(curr_gradient) < 0.001)
+    {
+        g_output_buffer_debug[index_self] = 20;
+        return;
+    }
+
+    const float2 curr_gradient_01 = normalize(curr_gradient);
+    const float2 curr_cell_pos = float2(DTid.x, DTid.y);
+    const float2 next_pos_world = curr_cell_pos + curr_droplet.position + curr_gradient_01;
+    const uint next_pos_world_x = uint(floor(next_pos_world.x));
+    const uint next_pos_world_y = uint(floor(next_pos_world.y));
+
+    // next_droplet.position = float2(next_pos_world.x - next_pos_world_x, next_pos_world.y - next_pos_world_y);
+    const float2 next_gradient = height_gradient_at_pos(next_pos_world_x, next_pos_world_y, next_droplet.position, next_droplet_height);
+    const float height_diff = next_droplet_height - curr_droplet_height;
+    const bool flowing_downhill = height_diff < 0;
+
+    const float curr_sediment = curr_droplet.sediment;
+    const float max_terrain_shift = abs(height_diff * 0.5);
+
+    const float curr_energy = curr_droplet.energy;
+    const float sediment_carrying_capacity = flowing_downhill ? -height_diff * curr_size * curr_energy * g_sediment_capacity_factor : 0;
+
+    if (!flowing_downhill)
+    {
+        next_droplet.position = float2(DTid.x + curr_droplet.position.x, DTid.y + curr_droplet.position.y);
+        next_droplet.sediment = curr_sediment * 0.9; // Drop some amount
+        next_droplet.energy = 0;
+        next_droplet.size = curr_droplet.size * g_evaporation;
+        g_output_buffer_debug[index_self] = 150;
+    }
+    else if (curr_sediment < sediment_carrying_capacity)
+    {
+        // Flowing down, droplet has space for more sediment, pick up.
+        const float remaining_sediment_capacity_in_droplet = g_droplet_max_sediment - curr_sediment;
+        const float to_pick_up_optimal = g_erosion_speed * (sediment_carrying_capacity - curr_sediment);
+        float to_pick_up = min(remaining_sediment_capacity_in_droplet, to_pick_up_optimal);
+
+        // Don't flip heights
+        to_pick_up = min(to_pick_up, max_terrain_shift);
+
+        next_droplet.position = next_pos_world;
+        next_droplet.sediment = to_pick_up;
+        next_droplet.energy = curr_droplet.energy - height_diff;
+        next_droplet.size = curr_droplet.size * g_evaporation;
+
+        // const inflow_offset_index_x = min(-1, max(1, next_pos_world_x - DTid.x);
+        // const inflow_offset_index_y = min(-1, max(1, next_pos_world_x - DTid.x);
+        // const inflow_offset_index = inflow_offset_index_x + 3 * inflow_offset_index_y;
+        // const inflow_base_index = next_pos_world_x * 8 + next_pos_world_y * 8 * g_in_buffer_width;
+        // g_output_buffer_inflow[inflow_base_index + inflow_offset_index] =
+    }
+    else if (curr_sediment > sediment_carrying_capacity)
+    {
+        // Droplet full, drop some sediment
+        float to_drop = curr_sediment - sediment_carrying_capacity;
+
+        // Don't flip heights
+        to_drop = min(to_drop, max_terrain_shift);
+
+        next_droplet.position = next_pos_world;
+        next_droplet.sediment = curr_droplet.sediment - to_drop;
+        next_droplet.energy = curr_droplet.energy - height_diff;
+        next_droplet.size = curr_droplet.size * g_evaporation;
+    }
+
+    g_output_buffer_droplets_next[index_self] = next_droplet;
+
+    // Next step: Collate incoming "next" droplets, reset and recalculate curr droplet, update heights.
 }
