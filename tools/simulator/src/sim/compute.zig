@@ -72,7 +72,7 @@ pub fn compute_f32_n_typed(compute_id: graph.ComputeId, images_in: []*types.Imag
         else => 1,
     };
     const compute_iterations: u32 = switch (compute_id) {
-        .erosion1 => 4,
+        .erosion1 => 40,
         else => 1,
     };
 
@@ -100,6 +100,7 @@ pub fn compute_f32_n_typed(compute_id: graph.ComputeId, images_in: []*types.Imag
     for (images_out, compute_info.out_buffers[0..images_out.len], out_buffer_types) |image_out, *out_buffer, buffer_type| {
         const width_divisor: u64 = switch (buffer_type) {
             .float2 => 2,
+            .erosion_struct => @sizeOf(ErosionDroplet) / @sizeOf(f32),
             else => 1,
         };
 
@@ -139,7 +140,7 @@ pub fn compute_reduce_f32_1(compute_id: graph.ComputeId, operator_id: graph.Comp
     compute_fn(&compute_info);
 }
 
-fn makeImage(height: u32, width: u32) types.ImageF32 {
+fn makeImage(width: u32, height: u32) types.ImageF32 {
     var buffer_image: types.ImageF32 = .{ .size = .{
         .height = height,
         .width = width,
@@ -470,8 +471,8 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void 
 
     const out_buffer_types = [_]graph.ComputeBufferType{
         .float,
-        .float,
-        .float,
+        .erosion_struct,
+        .erosion_struct,
         .float,
         .float,
     };

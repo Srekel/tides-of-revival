@@ -58,8 +58,13 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u4);
             const uint x = DTid.x + xx - 1;
             const uint y = DTid.y + yy - 1;
             const uint index_nbor = x + y * g_in_buffer_width;
-            const Droplet nbor_curr_droplet = g_output_buffer_droplets_next[index_nbor];
             const Droplet nbor_next_droplet = g_output_buffer_droplets_next[index_nbor];
+            if (nbor_next_droplet.size < 0.0001)
+            {
+                continue;
+            }
+
+            // const Droplet nbor_curr_droplet = g_output_buffer_droplets_next[index_nbor];
             const uint nbor_next_pos_world_x = uint(floor(nbor_next_droplet.position.x));
             const uint nbor_next_pos_world_y = uint(floor(nbor_next_droplet.position.y));
 

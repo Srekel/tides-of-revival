@@ -50,6 +50,9 @@ uint32_t compute_buffer_element_size(ComputeBufferType compute_buffer_type)
     case COMPUTE_BUFFER_TYPE_UINT:
         return (uint32_t)sizeof(uint32_t);
 
+    case COMPUTE_BUFFER_TYPE_EROSION_STRUCT:
+        return (uint32_t)sizeof(float) * 8;
+
     default:
         return 4;
     }

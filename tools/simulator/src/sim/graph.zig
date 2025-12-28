@@ -40,6 +40,7 @@ pub const ComputeBufferType = enum(u32) {
     float3 = 2,
     float4 = 3,
     uint = 4,
+    erosion_struct = 5,
 };
 
 pub const ComputeBuffer = extern struct {
