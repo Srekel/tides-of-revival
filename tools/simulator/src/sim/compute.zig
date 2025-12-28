@@ -145,7 +145,7 @@ fn makeImage(width: u32, height: u32) types.ImageF32 {
         .height = height,
         .width = width,
     } };
-    buffer_image.pixels = std.heap.c_allocator.alloc(f32, buffer_image.size.width * buffer_image.size.height) catch unreachable;
+    buffer_image.pixels = std.heap.c_allocator.alignedAlloc(f32, 32 * 8, buffer_image.size.width * buffer_image.size.height) catch unreachable;
     return buffer_image;
 }
 
@@ -419,10 +419,10 @@ pub fn remapCurve(image_in: *types.ImageF32, curve: []const types.Vec2, image_ou
 const ErosionSettings = extern struct {
     width: u32,
     height: u32,
-    sediment_capacity: f32 = 50,
-    droplet_max_sediment: f32 = 200,
+    sediment_capacity: f32 = 0.1,
+    droplet_max_sediment: f32 = 1,
     deposit_speed: f32 = 0.5,
-    erosion_speed: f32 = 50,
+    erosion_speed: f32 = 0.1,
     evaporation: f32 = 0.95,
     momentum: f32 = 0.1,
 };
@@ -447,17 +447,17 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void 
 
     var droplets = makeImage(erosion_data.width * ErosionDroplet.float_count, erosion_data.height);
     var droplets_new = makeImage(erosion_data.width * ErosionDroplet.float_count, erosion_data.height);
-    var inflow = makeImage(erosion_data.width * 9, erosion_data.height);
+    // var inflow = makeImage(erosion_data.width * 9, erosion_data.height);
     var debug = makeImage(erosion_data.width, erosion_data.height);
     defer std.heap.c_allocator.free(droplets.pixels);
     defer std.heap.c_allocator.free(droplets_new.pixels);
-    defer std.heap.c_allocator.free(inflow.pixels);
+    // defer std.heap.c_allocator.free(inflow.pixels);
     defer std.heap.c_allocator.free(debug.pixels);
 
     scratch_image.zeroClear();
     droplets.zeroClear();
     droplets_new.zeroClear();
-    inflow.zeroClear();
+    // inflow.zeroClear();
     debug.zeroClear();
 
     var in_buffers = [_]*types.ImageF32{heightmap};
@@ -465,7 +465,7 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void 
         scratch_image,
         &droplets,
         &droplets_new,
-        &inflow,
+        // &inflow,
         &debug,
     };
 
@@ -473,7 +473,7 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32) void 
         .float,
         .erosion_struct,
         .erosion_struct,
-        .float,
+        // .float,
         .float,
     };
     compute_f32_n_typed(

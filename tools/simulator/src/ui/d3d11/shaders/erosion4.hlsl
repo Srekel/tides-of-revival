@@ -25,8 +25,8 @@ StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
 RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1);
 RWStructuredBuffer<Droplet> g_output_buffer_droplets_next : register(u2);
-RWStructuredBuffer<float> g_output_buffer_inflow : register(u3);
-RWStructuredBuffer<float> g_output_buffer_debug : register(u4);
+// RWStructuredBuffer<float> g_output_buffer_inflow : register(u3);
+RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
 
 [numthreads(32, 32, 1)] void CSErosion_4_calculate_droplets(uint3 DTid : SV_DispatchThreadID)
 {
@@ -51,13 +51,13 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u4);
     // float total_flow = 0;
     // for (uint y = DTid.y - 1; y <= DTid.y + 1; y++) {
     //     for (uint x = DTid.x - 1; x <= DTid.x + 1; x++) {
-    for (uint yy = 0; yy <= 2; yy++)
+    for (int yy = 0; yy <= 2; yy++)
     {
-        for (uint xx = 0; xx <= 2; xx++)
+        for (int xx = 0; xx <= 2; xx++)
         {
-            const uint x = DTid.x + xx - 1;
-            const uint y = DTid.y + yy - 1;
-            const uint index_nbor = x + y * g_in_buffer_width;
+            const int x = DTid.x + xx - 1;
+            const int y = DTid.y + yy - 1;
+            const int index_nbor = x + y * g_in_buffer_width;
             const Droplet nbor_next_droplet = g_output_buffer_droplets_next[index_nbor];
             if (nbor_next_droplet.size < 0.0001)
             {
@@ -65,8 +65,8 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u4);
             }
 
             // const Droplet nbor_curr_droplet = g_output_buffer_droplets_next[index_nbor];
-            const uint nbor_next_pos_world_x = uint(floor(nbor_next_droplet.position.x));
-            const uint nbor_next_pos_world_y = uint(floor(nbor_next_droplet.position.y));
+            const int nbor_next_pos_world_x = int(floor(nbor_next_droplet.position.x));
+            const int nbor_next_pos_world_y = int(floor(nbor_next_droplet.position.y));
 
             if (nbor_next_pos_world_x != x || nbor_next_pos_world_y != y)
             {
