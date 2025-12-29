@@ -154,9 +154,10 @@ float2 rand2dTo2d(float2 value)
     {
         const float height = g_input_buffer_heightmap[index_self];
         g_output_buffer_heightmap[index_self] = height;
-        g_output_buffer_debug[index_self] = 255;
+        // g_output_buffer_debug[index_self] = 255;
 
-        if (height > 100 && rand2dTo1d(float2(DTid.x, DTid.y)) > 0.99)
+        // if (height > 100 && rand2dTo1d(float2(DTid.x, DTid.y)) > 0.99)q
+        if (g_output_buffer_heightmap[index_self] > 100 && DTid.x % 20 == 0 && DTid.y % 20 == 0)
         {
             const float rain_amount = 1;
             const float total_size = g_output_buffer_droplets[index_self].size + rain_amount;
@@ -167,8 +168,13 @@ float2 rand2dTo2d(float2 value)
             g_output_buffer_droplets[index_self].position = lerp(pos_prev, pos_new, rain_amount / total_size);
             g_output_buffer_droplets[index_self].size = total_size;
             g_output_buffer_droplets[index_self].energy = 1;
-            g_output_buffer_debug[index_self] = 200;
+            g_output_buffer_debug[index_self] = 230;
         }
+    }
+
+    if (g_output_buffer_heightmap[index_self] > 100 && DTid.x % 20 == 0 && DTid.y % 20 == 0)
+    {
+        g_output_buffer_debug[index_self] = 230;
     }
 
     Droplet next_droplet = g_output_buffer_droplets_next[index_self];

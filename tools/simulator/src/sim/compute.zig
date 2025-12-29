@@ -72,7 +72,7 @@ pub fn compute_f32_n_typed(compute_id: graph.ComputeId, images_in: []*types.Imag
         else => 1,
     };
     const compute_iterations: u32 = switch (compute_id) {
-        .erosion1 => 40,
+        .erosion1 => 4,
         else => 1,
     };
 

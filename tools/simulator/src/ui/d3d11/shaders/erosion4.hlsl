@@ -45,12 +45,6 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
     Droplet self_curr_droplet = g_output_buffer_droplets[index_self];
     const Droplet self_next_droplet = g_output_buffer_droplets_next[index_self];
 
-    // const uint inflow_base_index = DTid.x * 9 + DTid.y * 9 * g_in_buffer_width;
-    // const uint inflow_offset_index = 0;
-
-    // float total_flow = 0;
-    // for (uint y = DTid.y - 1; y <= DTid.y + 1; y++) {
-    //     for (uint x = DTid.x - 1; x <= DTid.x + 1; x++) {
     for (int yy = 0; yy <= 2; yy++)
     {
         for (int xx = 0; xx <= 2; xx++)

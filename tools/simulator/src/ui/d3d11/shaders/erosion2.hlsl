@@ -25,7 +25,6 @@ StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
 RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1);
 RWStructuredBuffer<Droplet> g_output_buffer_droplets_next : register(u2);
-// RWStructuredBuffer<float> g_output_buffer_inflow : register(u3);
 RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
 
 float height_at_pos(uint x, uint y, float2 droplet_pos)
@@ -136,7 +135,7 @@ float length_squared(float2 vec)
         next_droplet.size = curr_droplet.size * g_evaporation;
         g_output_buffer_debug[index_self] = 150;
     }
-    else if (curr_sediment < sediment_carrying_capacity)
+    else if (curr_sediment <= sediment_carrying_capacity)
     {
         // Flowing down, droplet has space for more sediment, pick up.
         const float remaining_sediment_capacity_in_droplet = g_droplet_max_sediment - curr_sediment;
@@ -150,12 +149,7 @@ float length_squared(float2 vec)
         next_droplet.sediment = to_pick_up;
         next_droplet.energy = curr_droplet.energy - height_diff;
         next_droplet.size = curr_droplet.size * g_evaporation;
-
-        // const inflow_offset_index_x = min(-1, max(1, next_pos_world_x - DTid.x);
-        // const inflow_offset_index_y = min(-1, max(1, next_pos_world_x - DTid.x);
-        // const inflow_offset_index = inflow_offset_index_x + 3 * inflow_offset_index_y;
-        // const inflow_base_index = next_pos_world_x * 8 + next_pos_world_y * 8 * g_in_buffer_width;
-        // g_output_buffer_inflow[inflow_base_index + inflow_offset_index] =
+        g_output_buffer_debug[index_self] = 190;
     }
     else if (curr_sediment > sediment_carrying_capacity)
     {
@@ -169,7 +163,12 @@ float length_squared(float2 vec)
         next_droplet.sediment = curr_droplet.sediment - to_drop;
         next_droplet.energy = curr_droplet.energy - height_diff;
         next_droplet.size = curr_droplet.size * g_evaporation;
+        g_output_buffer_debug[index_self] = 110;
     }
+    // else
+    // {
+    //     g_output_buffer_debug[index_self] = 140;
+    // }
 
     g_output_buffer_droplets_next[index_self] = next_droplet;
 
