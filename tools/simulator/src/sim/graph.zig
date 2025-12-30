@@ -12,16 +12,17 @@ pub const ComputeId = enum(u32) {
     terrace,
     multiply,
     add, // 10
+    subtract,
     gaussian_blur_horizontal,
     gaussian_blur_vertical,
     remap_curve_linear,
     gather_points,
-    erosion1, // 15
+    erosion1 = 30,
     erosion2,
     erosion3,
     erosion4,
     erosion5,
-    reduce, // 20
+    reduce = 100,
 };
 
 pub const ComputeOperatorId = enum(u32) {

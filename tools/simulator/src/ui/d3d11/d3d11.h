@@ -89,7 +89,7 @@ struct D3D11 : NoCopy
     uint32_t m_render_target_width = 0;
     uint32_t m_render_target_height = 0;
 
-    ComputeShader m_compute_shaders[32];
+    ComputeShader m_compute_shaders[128];
     unsigned m_compute_shader_count = 0;
 
     bool create_device(HWND hwnd);

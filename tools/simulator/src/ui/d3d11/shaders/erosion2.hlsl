@@ -57,12 +57,28 @@ float2 height_gradient_at_pos(uint x, uint y, float2 droplet_pos, out float heig
     const float height_top = lerp(height_tl, height_tr, droplet_pos.x);
     height = lerp(height_bot, height_top, droplet_pos.y);
 
+// 
+//    |         |         |
+// ---┼---------┼---------┼---
+//    |         |         |
+//    |   200   |   100   |
+//    |         |         |
+// ---TL--------TR--------┼---
+//    |         |         |
+//    |   100   |   150   |
+//    |      ╳  |         |
+// --[BL]-------BR--------┼---
+//    |         |         |
+// 
+//  ╳ = droplet_pos = (0.8, 0.1)
+// 
+
     const float dx_bot = height_bl - height_br;              // -50
-    const float dx_top = height_tl - height_tr;              // 0
-    const float dx = lerp(dx_bot, dx_top, droplet_pos.y);    // -45
+    const float dx_top = height_tl - height_tr;              //  100
+    const float dx = lerp(dx_bot, dx_top, droplet_pos.y);    // -50 + 150 * 10% = -35
     const float dy_left = height_bl - height_tl;             // -100
     const float dy_right = height_br - height_tr;            // 50
-    const float dy = lerp(dy_left, dy_right, droplet_pos.x); // -100 -> 50 @ 80% = 20
+    const float dy = lerp(dy_left, dy_right, droplet_pos.x); // -100 + 150 * 80% = 20
 
     return float2(dx, dy);
 }
@@ -117,9 +133,13 @@ float length_squared(float2 vec)
     const uint next_pos_world_y = uint(floor(next_pos_world.y));
 
     // next_droplet.position = float2(next_pos_world.x - next_pos_world_x, next_pos_world.y - next_pos_world_y);
-    const float2 next_gradient = height_gradient_at_pos(next_pos_world_x, next_pos_world_y, next_droplet.position, next_droplet_height);
+    const float2 next_droplet_position_offset = float2(
+        next_pos_world.x - next_pos_world_x,
+        next_pos_world.y - next_pos_world_y
+    );
+    const float2 next_gradient = height_gradient_at_pos(next_pos_world_x, next_pos_world_y, next_droplet_position_offset, next_droplet_height);
     const float height_diff = next_droplet_height - curr_droplet_height;
-    const bool flowing_downhill = height_diff < 0;
+    const bool flowing_downhill = height_diff <= 0;
 
     const float curr_sediment = curr_droplet.sediment;
     const float max_terrain_shift = abs(height_diff * 0.5);
@@ -139,17 +159,17 @@ float length_squared(float2 vec)
     {
         // Flowing down, droplet has space for more sediment, pick up.
         const float remaining_sediment_capacity_in_droplet = g_droplet_max_sediment - curr_sediment;
-        const float to_pick_up_optimal = g_erosion_speed * (sediment_carrying_capacity - curr_sediment);
-        float to_pick_up = min(remaining_sediment_capacity_in_droplet, to_pick_up_optimal);
+        const float to_pick_up_optimal = g_erosion_speed * sediment_carrying_capacity;
 
         // Don't flip heights
-        to_pick_up = min(to_pick_up, max_terrain_shift);
+        const float to_pick_up = min(to_pick_up_optimal, max_terrain_shift);
 
-        next_droplet.position = next_pos_world;
-        next_droplet.sediment = to_pick_up;
+        next_droplet.position = next_pos_world; // yes store world
+        next_droplet.sediment = min(curr_sediment + to_pick_up, remaining_sediment_capacity_in_droplet);
         next_droplet.energy = curr_droplet.energy - height_diff;
         next_droplet.size = curr_droplet.size * g_evaporation;
-        g_output_buffer_debug[index_self] = 190;
+        // g_output_buffer_debug[index_self] = 190;
+        g_output_buffer_debug[index_self] = max(g_output_buffer_debug[index_self], next_droplet.sediment * 1000);
     }
     else if (curr_sediment > sediment_carrying_capacity)
     {

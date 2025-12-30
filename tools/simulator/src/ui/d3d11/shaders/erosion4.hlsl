@@ -58,11 +58,10 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
                 continue;
             }
 
-            // const Droplet nbor_curr_droplet = g_output_buffer_droplets_next[index_nbor];
             const int nbor_next_pos_world_x = int(floor(nbor_next_droplet.position.x));
             const int nbor_next_pos_world_y = int(floor(nbor_next_droplet.position.y));
 
-            if (nbor_next_pos_world_x != x || nbor_next_pos_world_y != y)
+            if (nbor_next_pos_world_x != DTid.x || nbor_next_pos_world_y != DTid.y)
             {
                 // Neighbor didn't flow into self
                 continue;
@@ -73,7 +72,8 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
             const float lerp_t = nbor_size / total_size;
             const float2 nbor_next_pos = float2(
                 nbor_next_droplet.position.x - nbor_next_pos_world_x,
-                nbor_next_droplet.position.y - nbor_next_pos_world_y);
+                nbor_next_droplet.position.y - nbor_next_pos_world_y
+            );
             self_curr_droplet.position = lerp(self_curr_droplet.position, nbor_next_pos, lerp_t);
             self_curr_droplet.energy = lerp(self_curr_droplet.energy, nbor_next_droplet.energy, lerp_t);
             self_curr_droplet.size += nbor_next_droplet.size;

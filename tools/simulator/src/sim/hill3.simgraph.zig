@@ -699,7 +699,7 @@ pub fn generate_erosion(ctx: *Context) void {
     std.log.info("Node: generate_erosion [erosion]", .{});
 
     for (0..1) |_| {
-        compute.erosion(&heightmap, &scratch_image);
+        compute.erosion(&heightmap, &scratch_image, &scratch_image2);
         nodes.math.rerangify(&heightmap);
     }
 

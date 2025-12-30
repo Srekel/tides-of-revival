@@ -389,7 +389,7 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                 // writeLine(writer, "    types.saveImageF32({s}, \"{s}_b4terrace\", false);", .{ gradient, gradient });
                 // writeLine(writer, "    types.saveImageF32(heightmap, \"{s}_b4terrace\", false);", .{heightmap});
                 writeLine(writer, "    for (0..1) |_| {{", .{});
-                writeLine(writer, "        compute.erosion(&{s}, &scratch_image);", .{heightmap});
+                writeLine(writer, "        compute.erosion(&{s}, &scratch_image, &scratch_image2);", .{heightmap});
                 writeLine(writer, "        nodes.math.rerangify(&{s});", .{heightmap});
                 // writeLine(writer, "        types.saveImageF32({s}, \"{s}\", false);", .{ heightmap, heightmap });
                 writeLine(writer, "    }}", .{});

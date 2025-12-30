@@ -10,7 +10,8 @@ cbuffer constant_buffer_0 : register(b0)
     float g_momentum;
 };
 
-struct Droplet {
+struct Droplet
+{
     float size;
     float energy;
     float sediment;
@@ -22,9 +23,10 @@ struct Droplet {
 
 StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
-RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1); 
-RWStructuredBuffer<Droplet> g_output_buffer_droplets_new : register(u2); 
-RWStructuredBuffer<float> g_output_buffer_inflow : register(u3); 
+RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1);
+RWStructuredBuffer<Droplet> g_output_buffer_droplets_next : register(u2);
+// RWStructuredBuffer<float> g_output_buffer_inflow : register(u3);
+RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
 
 [numthreads(32, 32, 1)] void CSErosion_5_apply_droplets(uint3 DTid : SV_DispatchThreadID)
 {
@@ -39,7 +41,18 @@ RWStructuredBuffer<float> g_output_buffer_inflow : register(u3);
     }
     
     const uint index_self = DTid.x + DTid.y * g_in_buffer_width;
-    g_output_buffer_droplets[index_self].energy = g_output_buffer_droplets_new[index_self].energy;
-    g_output_buffer_droplets[index_self].size = g_output_buffer_droplets_new[index_self].size;
-    g_output_buffer_droplets[index_self].sediment = g_output_buffer_droplets_new[index_self].sediment;
+
+    const float curr_energy = g_output_buffer_droplets[index_self].energy;
+    const float curr_size = g_output_buffer_droplets[index_self].size;
+    const float curr_sediment = g_output_buffer_droplets[index_self].sediment;
+
+    const float next_energy = g_output_buffer_droplets_next[index_self].energy;
+    const float next_size = g_output_buffer_droplets_next[index_self].size;
+    const float next_sediment = g_output_buffer_droplets_next[index_self].sediment;
+
+    g_output_buffer_droplets[index_self].energy = max(0, curr_energy - next_energy);
+    g_output_buffer_droplets[index_self].size = max(0, curr_size - next_size);
+    g_output_buffer_droplets[index_self].sediment = max(0, curr_sediment - next_sediment);
+
+    g_output_buffer_debug[index_self] = max(g_output_buffer_debug[index_self], curr_sediment * 100);
 }

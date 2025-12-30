@@ -119,6 +119,8 @@ bool D3D11::create_device(HWND hwnd)
 
     create_render_target();
 
+    memset(m_compute_shaders, 0, sizeof(m_compute_shaders));
+
     m_compute_shader_count = 0;
     compile_compute_shader(L"shaders/remap.hlsl", "CSRemap", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
@@ -142,6 +144,8 @@ bool D3D11::create_device(HWND hwnd)
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/add.hlsl", "CSAdd", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
+    compile_compute_shader(L"shaders/subtract.hlsl", "CSSubtract", nullptr, &m_compute_shaders[m_compute_shader_count]);
+    m_compute_shader_count++;
     {
 
         D3D_SHADER_MACRO macros[] = {"BLUR_HORIZONTAL", "", nullptr, nullptr};
@@ -160,6 +164,8 @@ bool D3D11::create_device(HWND hwnd)
     m_compute_shader_count++;
 
     // Erosion sequence
+    const unsigned EROSION_INDEX = 30;
+    m_compute_shader_count = EROSION_INDEX;
     compile_compute_shader(L"shaders/erosion1.hlsl", "CSErosion_1_rain", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/erosion2.hlsl", "CSErosion_2_collect_flow", nullptr, &m_compute_shaders[m_compute_shader_count]);
@@ -168,13 +174,13 @@ bool D3D11::create_device(HWND hwnd)
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/erosion4.hlsl", "CSErosion_4_calculate_droplets", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
-    // compile_compute_shader(L"shaders/erosion5.hlsl", "CSErosion_5_apply_droplets", nullptr, &m_compute_shaders[m_compute_shader_count]);
-    // m_compute_shader_count++;
-
-    assert(m_compute_shader_count + 10 < 32);
+    compile_compute_shader(L"shaders/erosion5.hlsl", "CSErosion_5_apply_droplets", nullptr, &m_compute_shaders[m_compute_shader_count]);
+    m_compute_shader_count++;
 
     // Parallel Reduce (Min/Max)
     {
+        const unsigned REDUCE_INDEX = 100;
+        m_compute_shader_count = REDUCE_INDEX;
         {
             compile_compute_shader(L"shaders/parallel_reduce.hlsl", "CSReduceSum", nullptr, &m_compute_shaders[m_compute_shader_count]);
             m_compute_shader_count++;
@@ -252,8 +258,12 @@ void D3D11::cleanup_device()
     cleanup_render_target();
     for (unsigned i_cs = 0; i_cs < m_compute_shader_count; i_cs++)
     {
-        SAFE_RELEASE(m_compute_shaders[i_cs].compute_shader);
-        SAFE_RELEASE(m_compute_shaders[i_cs].reflection);
+        ComputeShader &shader = m_compute_shaders[i_cs];
+        if (shader.compute_shader != nullptr)
+        {
+            SAFE_RELEASE(shader.compute_shader);
+            SAFE_RELEASE(shader.reflection);
+        }
     }
     SAFE_RELEASE(m_swapchain);
     SAFE_RELEASE(m_device_context);
