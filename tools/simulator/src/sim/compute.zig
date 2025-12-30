@@ -484,7 +484,8 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32, scrat
     const down_up_sampled_heightmap = &scratch_image3;
     const eroded_heightmap = scratch_image;
     downsample(heightmap, scratch_image, down_sampled_heightmap, .average);
-    upsample(scratch_image2, scratch_image, down_up_sampled_heightmap, .average);
+    types.saveImageF32(down_sampled_heightmap.*, "erosion_down_sampled_heightmap", false);
+    upsample(down_sampled_heightmap, scratch_image, down_up_sampled_heightmap, .average);
 
     eroded_heightmap.size = down_sampled_heightmap.size;
     eroded_heightmap.zeroClear();
@@ -514,14 +515,21 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32, scrat
         erosion_data,
     );
 
+    nodes.math.rerangify(down_sampled_heightmap);
+    nodes.math.rerangify(eroded_heightmap);
+    nodes.math.rerangify(down_up_sampled_heightmap);
     types.saveImageF32(heightmap.*, "erosion_heightmap_before", false);
     types.saveImageF32(down_sampled_heightmap.*, "erosion_downsampled_heightmap", false);
     types.saveImageF32(eroded_heightmap.*, "erosion_eroded_heightmap", false);
     types.saveImageF32(down_up_sampled_heightmap.*, "erosion_down_up_sampled_heightmap", false);
 
-    upsample(eroded_heightmap, scratch_image, eroded_heightmap, .average);
-    math_sub(eroded_heightmap, down_up_sampled_heightmap, scratch_image, down_up_sampled_heightmap);
-    math_sub(heightmap, down_up_sampled_heightmap, scratch_image, heightmap);
+    upsample(eroded_heightmap, &scratch_image3, eroded_heightmap, .average);
+    const erosion_delta = &scratch_image3;
+    scratch_image.size = heightmap.size;
+    math_sub(eroded_heightmap, down_up_sampled_heightmap, erosion_delta, scratch_image);
+    math_add(heightmap, down_up_sampled_heightmap, heightmap, scratch_image);
+    nodes.math.rerangify(heightmap);
+    nodes.math.rerangify(down_up_sampled_heightmap);
 
     // heightmap.swap(scratch_image);
     // nodes.math.rerangify(heightmap);

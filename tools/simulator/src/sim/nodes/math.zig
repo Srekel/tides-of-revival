@@ -12,8 +12,9 @@ pub fn square(image: *types.ImageF32) void {
 
 pub fn rerangify(image: *types.ImageF32) void {
     var range_min: f32 = 10000;
-    var range_max: f32 = 0;
-    for (image.pixels) |pixel| {
+    var range_max: f32 = -10000;
+    const pixel_count = image.size.area();
+    for (image.pixels[0..pixel_count]) |pixel| {
         range_min = @min(range_min, pixel);
         range_max = @max(range_max, pixel);
     }
