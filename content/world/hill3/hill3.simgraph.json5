@@ -247,9 +247,9 @@
       name: "main_generate_heightmap",
       kind: "sequence",
       next: [
-        // "generate_heightmap_water",
-        // "generate_heightmap_plains",
-        // "generate_voronoi_weight_shore",
+        "generate_heightmap_water",
+        "generate_heightmap_plains",
+        "generate_voronoi_weight_shore",
         "generate_heightmap_hills",
         "generate_heightmap_mountains",
         "merge_heightmaps",
@@ -596,8 +596,8 @@
       // vars
       op: "add",
       inputs: [
-        // "heightmap_water",
-        // "heightmap_plains",
+        "heightmap_water",
+        "heightmap_plains",
         "heightmap_hills",
         "heightmap_mountains"
       ],

@@ -119,8 +119,8 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
     writeLine(writer, "", .{});
     writeLine(writer, "// ============ CONSTANTS ============", .{});
     // writeLine(writer, "const DRY_RUN = {};", .{j_settings.Object.get("dry_run").?.Bool});
-    // writeLine(writer, "const DRY_RUN = {};", .{is_debug});
-    writeLine(writer, "const DRY_RUN = {};", .{true});
+    writeLine(writer, "const DRY_RUN = {};", .{is_debug});
+    // writeLine(writer, "const DRY_RUN = {};", .{true});
     writeLine(writer, "const kilometers = if (DRY_RUN) 2 else 16;", .{});
     writeLine(writer, "const preview_size = 512;", .{});
     writeLine(writer, "const preview_size_big = preview_size * 2;", .{});

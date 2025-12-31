@@ -28,6 +28,27 @@ RWStructuredBuffer<Droplet> g_output_buffer_droplets_next : register(u2);
 // RWStructuredBuffer<float> g_output_buffer_inflow : register(u3);
 RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
 
+// 
+//    |         |         |
+// ---┼---------┼---------┼---
+//    |         |         |
+//    |   200   |   100   |
+//    |         |         |
+// ---TL--------TR--------┼---
+//    |         |         |
+//    |   100   |   150   |
+//    |      ╳  |         |
+// --[BL]-------BR--------┼---
+//    |         |         |
+// 
+//  ╳ = droplet_pos = (0.8, 0.1)
+// 
+// BL:   ( 0.2 + 0.9 ) / 4
+// BR:   ( 0.8 + 0.9 ) / 4
+// TL:   ( 0.2 + 0.1 ) / 4
+// TR:   ( 0.8 + 0.1 ) / 4
+// SUM:     2 + 2
+
 [numthreads(32, 32, 1)] void CSErosion_3_move_sediment(uint3 DTid : SV_DispatchThreadID)
 {
     // Skip edges
@@ -41,15 +62,33 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
     }
 
     const uint index_self = DTid.x + DTid.y * g_in_buffer_width;
-
     const Droplet self_curr_droplet = g_output_buffer_droplets[index_self];
     const Droplet self_next_droplet = g_output_buffer_droplets_next[index_self];
 
+    const float weight_BL = 0.25 * ((1 - self_curr_droplet.position.x) + (1 - self_curr_droplet.position.y));
+    const float weight_BR = 0.25 * ((0 + self_curr_droplet.position.x) + (1 - self_curr_droplet.position.y));
+    const float weight_TL = 0.25 * ((1 - self_curr_droplet.position.x) + (0 + self_curr_droplet.position.y));
+    const float weight_TR = 0.25 * ((0 + self_curr_droplet.position.x) + (0 + self_curr_droplet.position.y));
+
+    const uint index_BL = DTid.x + 0 + (DTid.y + 0) * g_in_buffer_width;
+    const uint index_BR = DTid.x + 1 + (DTid.y + 0) * g_in_buffer_width;
+    const uint index_TL = DTid.x + 0 + (DTid.y + 1) * g_in_buffer_width;
+    const uint index_TR = DTid.x + 1 + (DTid.y + 1) * g_in_buffer_width;
+
+    const float height_BL = g_output_buffer_heightmap[index_BL];
+    const float height_BR = g_output_buffer_heightmap[index_BR];
+    const float height_TL = g_output_buffer_heightmap[index_TL];
+    const float height_TR = g_output_buffer_heightmap[index_TR];
+
     const float height_diff = self_curr_droplet.sediment - self_next_droplet.sediment;
-    const float height = g_output_buffer_heightmap[index_self];
-    g_output_buffer_heightmap[index_self] = max(0.12345, height + height_diff);
+    g_output_buffer_heightmap[index_BL] = max(0.12345, g_output_buffer_heightmap[index_BL] + height_diff * weight_BL);
+    g_output_buffer_heightmap[index_BR] = max(0.12345, g_output_buffer_heightmap[index_BR] + height_diff * weight_BR);
+    g_output_buffer_heightmap[index_TL] = max(0.12345, g_output_buffer_heightmap[index_TL] + height_diff * weight_TL);
+    g_output_buffer_heightmap[index_TR] = max(0.12345, g_output_buffer_heightmap[index_TR] + height_diff * weight_TR);
+
+
     // if (height_diff > 0.00001)
     {
-        g_output_buffer_debug[index_self] = height / 10;
+        g_output_buffer_debug[index_self] = g_output_buffer_heightmap[index_BL] / 10;
     }
 }
