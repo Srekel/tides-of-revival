@@ -122,7 +122,7 @@ float length_squared(float2 vec)
     const float2 curr_gradient = height_gradient_at_pos(DTid.x, DTid.y, curr_droplet.position, curr_droplet_height);
     if (length_squared(curr_gradient) < 0.001)
     {
-        g_output_buffer_debug[index_self] = 20;
+        // g_output_buffer_debug[index_self] = 20;
         return;
     }
 
@@ -149,11 +149,18 @@ float length_squared(float2 vec)
 
     if (!flowing_downhill)
     {
-        next_droplet.position = float2(DTid.x + curr_droplet.position.x, DTid.y + curr_droplet.position.y);
-        next_droplet.sediment = curr_sediment * 0.9; // Drop some amount
-        next_droplet.energy = 0;
+        // Droplet full, drop some sediment
+        float to_drop = curr_sediment;
+
+        // Don't flip heights
+        to_drop = min(to_drop, max_terrain_shift);
+
+        next_droplet.position = next_pos_world - curr_gradient_01 * 0.5;
+        next_droplet.sediment = curr_droplet.sediment - to_drop;
+        next_droplet.energy *= 0.5;
         next_droplet.size = curr_droplet.size * g_evaporation;
-        g_output_buffer_debug[index_self] = 150;
+
+        // g_output_buffer_debug[index_self] = 150;
     }
     else if (curr_sediment <= sediment_carrying_capacity)
     {
@@ -169,7 +176,7 @@ float length_squared(float2 vec)
         next_droplet.energy = curr_droplet.energy - height_diff;
         next_droplet.size = curr_droplet.size * g_evaporation;
         // g_output_buffer_debug[index_self] = 190;
-        g_output_buffer_debug[index_self] = max(g_output_buffer_debug[index_self], next_droplet.sediment * 1000);
+        // g_output_buffer_debug[index_self] = max(g_output_buffer_debug[index_self], next_droplet.sediment * 1000);
     }
     else if (curr_sediment > sediment_carrying_capacity)
     {
@@ -183,7 +190,7 @@ float length_squared(float2 vec)
         next_droplet.sediment = curr_droplet.sediment - to_drop;
         next_droplet.energy = curr_droplet.energy - height_diff;
         next_droplet.size = curr_droplet.size * g_evaporation;
-        g_output_buffer_debug[index_self] = 110;
+        // g_output_buffer_debug[index_self] = 110;
     }
     // else
     // {

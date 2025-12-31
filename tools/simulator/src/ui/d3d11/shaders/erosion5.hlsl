@@ -54,5 +54,5 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
     g_output_buffer_droplets[index_self].size = max(0, curr_size - next_size);
     g_output_buffer_droplets[index_self].sediment = max(0, curr_sediment - next_sediment);
 
-    g_output_buffer_debug[index_self] = max(g_output_buffer_debug[index_self], curr_sediment * 100);
+    // g_output_buffer_debug[index_self] = max(g_output_buffer_debug[index_self], curr_sediment * 10);
 }

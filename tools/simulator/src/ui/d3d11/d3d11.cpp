@@ -164,8 +164,8 @@ bool D3D11::create_device(HWND hwnd)
     m_compute_shader_count++;
 
     // Erosion sequence
-    const unsigned EROSION_INDEX = 30;
-    m_compute_shader_count = EROSION_INDEX;
+    // const unsigned EROSION_INDEX = 30;
+    // m_compute_shader_count = EROSION_INDEX;
     compile_compute_shader(L"shaders/erosion1.hlsl", "CSErosion_1_rain", nullptr, &m_compute_shaders[m_compute_shader_count]);
     m_compute_shader_count++;
     compile_compute_shader(L"shaders/erosion2.hlsl", "CSErosion_2_collect_flow", nullptr, &m_compute_shaders[m_compute_shader_count]);
@@ -179,8 +179,8 @@ bool D3D11::create_device(HWND hwnd)
 
     // Parallel Reduce (Min/Max)
     {
-        const unsigned REDUCE_INDEX = 100;
-        m_compute_shader_count = REDUCE_INDEX;
+        // const unsigned REDUCE_INDEX = 100;
+        // m_compute_shader_count = REDUCE_INDEX;
         {
             compile_compute_shader(L"shaders/parallel_reduce.hlsl", "CSReduceSum", nullptr, &m_compute_shaders[m_compute_shader_count]);
             m_compute_shader_count++;

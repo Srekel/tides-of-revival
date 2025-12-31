@@ -17,12 +17,12 @@ pub const ComputeId = enum(u32) {
     gaussian_blur_vertical,
     remap_curve_linear,
     gather_points,
-    erosion1 = 30,
+    erosion1,
     erosion2,
     erosion3,
     erosion4,
     erosion5,
-    reduce = 100,
+    reduce,
 };
 
 pub const ComputeOperatorId = enum(u32) {

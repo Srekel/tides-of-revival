@@ -47,8 +47,8 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
 
     const float height_diff = self_curr_droplet.sediment - self_next_droplet.sediment;
     const float height = g_output_buffer_heightmap[index_self];
-    g_output_buffer_heightmap[index_self] = max(0, height + height_diff);
-    if (height_diff > 0.001)
+    g_output_buffer_heightmap[index_self] = max(0.12345, height + height_diff);
+    // if (height_diff > 0.00001)
     {
         g_output_buffer_debug[index_self] = height / 10;
     }

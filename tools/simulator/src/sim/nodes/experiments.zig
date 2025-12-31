@@ -570,3 +570,15 @@ pub fn water(water_image: types.ImageF32, heightmap: *types.ImageF32) void {
         }
     }
 }
+
+pub fn testImage(image: types.ImageF32) void {
+    _ = image; // autofix
+    // var lol1: u32 = 0;
+    // for (image.pixels[0..image.size.area()], 0..) |pixel, i| {
+    //     if (pixel == @round(pixel)) {
+    //         std.log.info("testImage {} {}, p {}", .{ lol1, i, pixel });
+    //         lol1 += 1;
+    //     }
+    // }
+    // std.log.info("testImage {}", .{lol1});
+}

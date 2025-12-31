@@ -72,7 +72,7 @@ pub fn compute_f32_n_typed(compute_id: graph.ComputeId, images_in: []*types.Imag
         else => 1,
     };
     const compute_iterations: u32 = switch (compute_id) {
-        .erosion1 => 4,
+        .erosion1 => 1000,
         else => 1,
     };
 
@@ -216,6 +216,8 @@ pub fn downsample(image_in: *types.ImageF32, scratch_image: *types.ImageF32, ima
         .op = op,
     };
 
+    nodes.experiments.testImage(image_in.*);
+
     // TODO: Clear image_out depending on op?
     const scratch_image_size = scratch_image.size;
     scratch_image.size.width = image_in.size.width / 2;
@@ -228,6 +230,7 @@ pub fn downsample(image_in: *types.ImageF32, scratch_image: *types.ImageF32, ima
     min(image_out, scratch_image);
     max(image_out, scratch_image);
     nodes.math.rerangify(image_out);
+    nodes.experiments.testImage(image_in.*);
 }
 
 pub fn upsample(image_in: *types.ImageF32, scratch_image: *types.ImageF32, image_out: *types.ImageF32, op: graph.ComputeOperatorId) void {
@@ -242,6 +245,8 @@ pub fn upsample(image_in: *types.ImageF32, scratch_image: *types.ImageF32, image
         .op = op,
     };
 
+    nodes.experiments.testImage(image_in.*);
+
     // TODO: Clear image_out depending on op?
     const scratch_image_size = scratch_image.size;
     scratch_image.size.width = image_in.size.width * 2;
@@ -250,6 +255,8 @@ pub fn upsample(image_in: *types.ImageF32, scratch_image: *types.ImageF32, image
     compute_f32_1(.upsample, image_in, scratch_image, settings);
     image_out.size = scratch_image.size;
     image_out.swap(scratch_image);
+    nodes.math.rerangify(image_out);
+    nodes.experiments.testImage(image_out.*);
 }
 
 const BlurSettings = struct {
@@ -441,10 +448,10 @@ pub fn remapCurve(image_in: *types.ImageF32, curve: []const types.Vec2, image_ou
 const ErosionSettings = extern struct {
     width: u32,
     height: u32,
-    sediment_capacity_factor: f32 = 1,
-    droplet_max_sediment: f32 = 1,
+    sediment_capacity_factor: f32 = 0.1,
+    droplet_max_sediment: f32 = 5,
     deposit_speed: f32 = 0.5,
-    erosion_speed: f32 = 1,
+    erosion_speed: f32 = 0.1,
     evaporation: f32 = 0.95,
     momentum: f32 = 0.1,
 };
@@ -472,20 +479,24 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32, scrat
     var droplets_next = makeImage(erosion_data.width * ErosionDroplet.float_count, erosion_data.height);
     var debug = makeImage(erosion_data.width, erosion_data.height);
     var scratch_image3 = makeImage(scratch_image.size.width, scratch_image.size.height);
+    var scratch_image4 = makeImage(scratch_image.size.width, scratch_image.size.height);
+    var scratch_image5 = makeImage(scratch_image.size.width, scratch_image.size.height);
     defer std.heap.c_allocator.free(droplets.pixels);
     defer std.heap.c_allocator.free(droplets_next.pixels);
     defer std.heap.c_allocator.free(debug.pixels);
     defer std.heap.c_allocator.free(scratch_image3.pixels);
+    defer std.heap.c_allocator.free(scratch_image4.pixels);
+    defer std.heap.c_allocator.free(scratch_image5.pixels);
 
     defer scratch_image.size = heightmap.size;
     defer scratch_image2.size = heightmap.size;
     // defer scratch_image3.size = heightmap.size;
     const down_sampled_heightmap = scratch_image2;
     const down_up_sampled_heightmap = &scratch_image3;
-    const eroded_heightmap = scratch_image;
+    const eroded_heightmap = &scratch_image5;
     downsample(heightmap, scratch_image, down_sampled_heightmap, .average);
     types.saveImageF32(down_sampled_heightmap.*, "erosion_down_sampled_heightmap", false);
-    upsample(down_sampled_heightmap, scratch_image, down_up_sampled_heightmap, .average);
+    upsample(down_sampled_heightmap, scratch_image, down_up_sampled_heightmap, .nearest);
 
     eroded_heightmap.size = down_sampled_heightmap.size;
     eroded_heightmap.zeroClear();
@@ -515,28 +526,30 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32, scrat
         erosion_data,
     );
 
-    nodes.math.rerangify(down_sampled_heightmap);
+    nodes.math.rerangify(&debug);
     nodes.math.rerangify(eroded_heightmap);
-    nodes.math.rerangify(down_up_sampled_heightmap);
+    nodes.experiments.testImage(eroded_heightmap.*);
+    nodes.experiments.testImage(down_up_sampled_heightmap.*);
+    types.saveImageF32(debug, "erosion_debug", false);
     types.saveImageF32(heightmap.*, "erosion_heightmap_before", false);
     types.saveImageF32(down_sampled_heightmap.*, "erosion_downsampled_heightmap", false);
     types.saveImageF32(eroded_heightmap.*, "erosion_eroded_heightmap", false);
     types.saveImageF32(down_up_sampled_heightmap.*, "erosion_down_up_sampled_heightmap", false);
 
-    upsample(eroded_heightmap, &scratch_image3, eroded_heightmap, .average);
-    const erosion_delta = &scratch_image3;
+    upsample(eroded_heightmap, scratch_image, eroded_heightmap, .nearest);
+    types.saveImageF32(eroded_heightmap.*, "erosion_upsampled_eroded_heightmap", false);
+    const erosion_delta = &scratch_image4;
     scratch_image.size = heightmap.size;
-    math_sub(eroded_heightmap, down_up_sampled_heightmap, erosion_delta, scratch_image);
-    math_add(heightmap, down_up_sampled_heightmap, heightmap, scratch_image);
+    // math_sub(eroded_heightmap, down_up_sampled_heightmap, erosion_delta, scratch_image);
+    nodes.experiments.testImage(down_up_sampled_heightmap.*);
+    nodes.math.sub(eroded_heightmap, down_up_sampled_heightmap, erosion_delta);
+    // types.saveImageF32(erosion_delta.*, "erosion_delta", false);
+    math_add(heightmap, erosion_delta, heightmap, scratch_image);
     nodes.math.rerangify(heightmap);
-    nodes.math.rerangify(down_up_sampled_heightmap);
 
     // heightmap.swap(scratch_image);
     // nodes.math.rerangify(heightmap);
     types.saveImageF32(heightmap.*, "erosion_heightmap_after", false);
-
-    nodes.math.rerangify(&debug);
-    types.saveImageF32(debug, "erosion_debug", false);
 
     // nodes.math.rerangify(&energies);
     // types.saveImageF32(energies, "energies", false);

@@ -106,7 +106,7 @@ struct Droplet
     float size;
     float energy;
     float sediment;
-    float _padding4;
+    float IS_INITALIZED;
     float2 position;
     float _padding7;
     float _padding8;
@@ -138,6 +138,14 @@ float2 rand2dTo2d(float2 value)
 {
     const uint index_self = DTid.x + DTid.y * g_in_buffer_width;
 
+    const bool first_time = g_output_buffer_droplets[index_self].IS_INITALIZED == 0;
+    if (first_time)
+    {
+        const float height = g_input_buffer_heightmap[index_self];
+        g_output_buffer_heightmap[index_self] = height;
+        g_output_buffer_droplets[index_self].IS_INITALIZED = 1.0;
+    }
+
     // Skip edges
     const uint range = 2;
     if (DTid.x <= range + 1 ||
@@ -149,27 +157,20 @@ float2 rand2dTo2d(float2 value)
         return;
     }
 
-    // Initialize first time
-    if (g_output_buffer_heightmap[index_self] == 0)
+    if (first_time || true)
     {
-        const float height = g_input_buffer_heightmap[index_self];
-        g_output_buffer_heightmap[index_self] = height;
-        // g_output_buffer_debug[index_self] = 255;
-    // }
-
-        // if (height > 100 && rand2dTo1d(float2(DTid.x, DTid.y)) > 0.99)
-        if (g_output_buffer_heightmap[index_self] > 100 && DTid.x % 20 == 0 && DTid.y % 20 == 0)
+        if (g_output_buffer_heightmap[index_self] > 100 && DTid.x % 2 >= 0 && DTid.y % 2 >= 0)
         {
             const float rain_amount = 1;
             const float total_size = g_output_buffer_droplets[index_self].size + rain_amount;
 
             const float2 pos_prev = g_output_buffer_droplets[index_self].position;
-            const float2 pos_new = rand2dTo2d(float2(DTid.x, DTid.y));
+            const float2 pos_new = float2(0.01, 0.01) + 0.98 * rand2dTo2d(float2(DTid.x, DTid.y));
 
             g_output_buffer_droplets[index_self].position = lerp(pos_prev, pos_new, rain_amount / total_size);
             g_output_buffer_droplets[index_self].size = total_size;
-            g_output_buffer_droplets[index_self].energy = 1;
-            g_output_buffer_debug[index_self] = 230;
+            g_output_buffer_droplets[index_self].energy = max(1, g_output_buffer_droplets[index_self].energy);
+            // g_output_buffer_debug[index_self] = 230;
         }
     }
 
