@@ -1,5 +1,4 @@
-cbuffer constant_buffer_0 : register(b0)
-{
+cbuffer constant_buffer_0 : register(b0) {
     uint g_in_buffer_width;
     uint g_in_buffer_height;
     float g_sediment_capacity_factor;
@@ -10,8 +9,7 @@ cbuffer constant_buffer_0 : register(b0)
     float g_momentum;
 };
 
-struct Droplet
-{
+struct Droplet {
     float size;
     float energy;
     float sediment;
@@ -28,15 +26,13 @@ RWStructuredBuffer<Droplet> g_output_buffer_droplets_next : register(u2);
 // RWStructuredBuffer<float> g_output_buffer_inflow : register(u3);
 RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
 
-[numthreads(32, 32, 1)] void CSErosion_4_calculate_droplets(uint3 DTid : SV_DispatchThreadID)
-{
+[numthreads(32, 32, 1)] void CSErosion_4_calculate_droplets(uint3 DTid : SV_DispatchThreadID) {
     // Skip edges
     const uint range = 2;
     if (DTid.x <= range + 1 ||
         DTid.x >= g_in_buffer_width - range - 2 ||
         DTid.y <= range + 1 ||
-        DTid.y >= g_in_buffer_height - range - 2)
-    {
+        DTid.y >= g_in_buffer_height - range - 2) {
         return;
     }
 
@@ -47,24 +43,20 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
     self_curr_droplet.size = 0;
     self_curr_droplet.sediment = 0;
 
-    for (int yy = 0; yy <= 2; yy++)
-    {
-        for (int xx = 0; xx <= 2; xx++)
-        {
+    for (int yy = 0; yy <= 2; yy++) {
+        for (int xx = 0; xx <= 2; xx++) {
             const int x = DTid.x + xx - 1;
             const int y = DTid.y + yy - 1;
             const int index_nbor = x + y * g_in_buffer_width;
             const Droplet nbor_next_droplet = g_output_buffer_droplets_next[index_nbor];
-            if (nbor_next_droplet.size < 0.0001)
-            {
+            if (nbor_next_droplet.size < 0.0001) {
                 continue;
             }
 
             const int nbor_next_pos_world_x = int(floor(nbor_next_droplet.position.x));
             const int nbor_next_pos_world_y = int(floor(nbor_next_droplet.position.y));
 
-            if (nbor_next_pos_world_x != DTid.x || nbor_next_pos_world_y != DTid.y)
-            {
+            if (nbor_next_pos_world_x != DTid.x || nbor_next_pos_world_y != DTid.y) {
                 // Neighbor didn't flow into self
                 continue;
             }
@@ -72,10 +64,9 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
             const float nbor_size = nbor_next_droplet.size;
             const float total_size = nbor_size + self_curr_droplet.size;
             const float lerp_t = nbor_size / total_size;
-            const float2 nbor_next_pos = float2(
+            const float2 nbor_next_pos = float2(// Convert from world space to cell space (0,1)
                 nbor_next_droplet.position.x - nbor_next_pos_world_x,
-                nbor_next_droplet.position.y - nbor_next_pos_world_y
-            );
+                nbor_next_droplet.position.y - nbor_next_pos_world_y);
             self_curr_droplet.position = lerp(self_curr_droplet.position, nbor_next_pos, lerp_t);
             self_curr_droplet.energy = lerp(self_curr_droplet.energy, nbor_next_droplet.energy, lerp_t);
             self_curr_droplet.size += nbor_next_droplet.size;

@@ -11,7 +11,7 @@ const c_cpp_nodes = @cImport({
 });
 
 // ============ CONSTANTS ============
-const DRY_RUN = true;
+const DRY_RUN = false;
 const kilometers = if (DRY_RUN) 2 else 16;
 const preview_size = 512;
 const preview_size_big = preview_size * 2;
@@ -260,12 +260,15 @@ pub fn main_generate_heightmap(ctx: *Context) void {
 
     // Sequence:
 
-    ctx.next_nodes.insert(0, generate_heightmap_hills) catch unreachable;
-    ctx.next_nodes.insert(1, generate_heightmap_mountains) catch unreachable;
-    ctx.next_nodes.insert(2, merge_heightmaps) catch unreachable;
-    ctx.next_nodes.insert(3, generate_heightmap_gradient) catch unreachable;
-    ctx.next_nodes.insert(4, generate_erosion) catch unreachable;
-    ctx.next_nodes.insert(5, generate_heightmap_gradient2) catch unreachable;
+    ctx.next_nodes.insert(0, generate_heightmap_water) catch unreachable;
+    ctx.next_nodes.insert(1, generate_heightmap_plains) catch unreachable;
+    ctx.next_nodes.insert(2, generate_voronoi_weight_shore) catch unreachable;
+    ctx.next_nodes.insert(3, generate_heightmap_hills) catch unreachable;
+    ctx.next_nodes.insert(4, generate_heightmap_mountains) catch unreachable;
+    ctx.next_nodes.insert(5, merge_heightmaps) catch unreachable;
+    ctx.next_nodes.insert(6, generate_heightmap_gradient) catch unreachable;
+    ctx.next_nodes.insert(7, generate_erosion) catch unreachable;
+    ctx.next_nodes.insert(8, generate_heightmap_gradient2) catch unreachable;
 }
 
 pub fn generate_poisson_for_voronoi(ctx: *Context) void {
@@ -656,7 +659,9 @@ pub fn remap_heightmap_mountains(ctx: *Context) void {
 pub fn merge_heightmaps(ctx: *Context) void {
     std.log.info("Node: merge_heightmaps [math]", .{});
 
-    compute.math_add( &heightmap_hills, &heightmap_mountains, &heightmap, &scratch_image);
+    compute.math_add( &heightmap_water, &heightmap_plains, &heightmap, &scratch_image);
+    compute.math_add( &heightmap_hills, &heightmap, &heightmap, &scratch_image);
+    compute.math_add( &heightmap_mountains, &heightmap, &heightmap, &scratch_image);
 
     types.image_preview_f32(heightmap, &preview_image_merge_heightmaps);
 

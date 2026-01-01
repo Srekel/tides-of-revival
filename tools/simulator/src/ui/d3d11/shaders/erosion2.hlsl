@@ -88,6 +88,21 @@ float length_squared(float2 vec)
     return vec.x * vec.x + vec.y * vec.y;
 }
 
+float rand2dTo1d(float2 value, float2 dotDir = float2(12.9898, 78.233))
+{
+    float2 smallValue = sin(value);
+    float random = dot(smallValue, dotDir);
+    random = frac(sin(random) * 143758.5453);
+    return random;
+}
+
+float2 rand2dTo2d(float2 value)
+{
+    return float2(
+        rand2dTo1d(value, float2(12.989, 78.233)),
+        rand2dTo1d(value, float2(39.346, 11.135)));
+}
+
 [numthreads(32, 32, 1)] void CSErosion_2_collect_flow(uint3 DTid : SV_DispatchThreadID)
 {
     // Skip edges
@@ -126,7 +141,7 @@ float length_squared(float2 vec)
         return;
     }
 
-    const float2 curr_gradient_01 = normalize(curr_gradient);
+    const float2 curr_gradient_01 = 0.99 * normalize(normalize(curr_gradient) + rand2dTo2d(curr_gradient) * 0.9);
     const float2 curr_cell_pos = float2(DTid.x, DTid.y);
     const float2 next_pos_world = curr_cell_pos + curr_droplet.position + curr_gradient_01;
     const uint next_pos_world_x = uint(floor(next_pos_world.x));
@@ -142,7 +157,7 @@ float length_squared(float2 vec)
     const bool flowing_downhill = height_diff <= 0;
 
     const float curr_sediment = curr_droplet.sediment;
-    const float max_terrain_shift = abs(height_diff * 0.5);
+    const float max_terrain_shift = abs(height_diff * 0.5 * 0.25); // worst case 4 neighbors pouring into one
 
     const float curr_energy = curr_droplet.energy;
     const float sediment_carrying_capacity = flowing_downhill ? -height_diff * curr_size * curr_energy * g_sediment_capacity_factor : 0;
