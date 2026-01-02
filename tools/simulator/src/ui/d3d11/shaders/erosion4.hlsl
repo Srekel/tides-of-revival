@@ -39,6 +39,8 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
     const uint index_self = DTid.x + DTid.y * g_in_buffer_width;
 
     Droplet self_curr_droplet = g_output_buffer_droplets[index_self];
+
+    self_curr_droplet.position = float2(0,0); // this is fine because we also set size to 0.
     self_curr_droplet.energy = 0;
     self_curr_droplet.size = 0;
     self_curr_droplet.sediment = 0;

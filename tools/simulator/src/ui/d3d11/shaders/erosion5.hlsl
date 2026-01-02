@@ -38,17 +38,17 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
 
     const uint index_self = DTid.x + DTid.y * g_in_buffer_width;
 
-    const float curr_energy = g_output_buffer_droplets[index_self].energy;
-    const float curr_size = g_output_buffer_droplets[index_self].size;
-    const float curr_sediment = g_output_buffer_droplets[index_self].sediment;
+    // const float curr_energy = g_output_buffer_droplets[index_self].energy;
+    // const float curr_size = g_output_buffer_droplets[index_self].size;
+    // const float curr_sediment = g_output_buffer_droplets[index_self].sediment;
 
-    const float next_energy = g_output_buffer_droplets_next[index_self].energy;
-    const float next_size = g_output_buffer_droplets_next[index_self].size;
-    const float next_sediment = g_output_buffer_droplets_next[index_self].sediment;
+    // const float next_energy = g_output_buffer_droplets_next[index_self].energy;
+    // const float next_size = g_output_buffer_droplets_next[index_self].size;
+    // const float next_sediment = g_output_buffer_droplets_next[index_self].sediment;
 
-    g_output_buffer_droplets[index_self].energy = max(0, next_energy);
-    g_output_buffer_droplets[index_self].size = max(0,  next_size);
-    g_output_buffer_droplets[index_self].sediment = max(0,  next_sediment);
+    // g_output_buffer_droplets[index_self].energy = max(0, curr_energy - next_energy);
+    // g_output_buffer_droplets[index_self].size = max(0, curr_size - next_size);
+    // g_output_buffer_droplets[index_self].sediment = max(0, curr_sediment - next_sediment);
 
     // g_output_buffer_debug[index_self] = max(g_output_buffer_debug[index_self], curr_sediment * 10);
 }

@@ -1,5 +1,4 @@
-cbuffer constant_buffer_0 : register(b0)
-{
+cbuffer constant_buffer_0 : register(b0) {
     uint g_in_buffer_width;
     uint g_in_buffer_height;
     float g_sediment_capacity_factor;
@@ -10,8 +9,7 @@ cbuffer constant_buffer_0 : register(b0)
     float g_momentum;
 };
 
-struct Droplet
-{
+struct Droplet {
     float size;
     float energy;
     float sediment;
@@ -43,27 +41,30 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
 // 
 //  ╳ = droplet_pos = (0.8, 0.1)
 // 
-// BL:   ( 0.2 + 0.9 ) / 4
-// BR:   ( 0.8 + 0.9 ) / 4
-// TL:   ( 0.2 + 0.1 ) / 4
-// TR:   ( 0.8 + 0.1 ) / 4
-// SUM:     2 + 2
+// BL:   ( 0.2 + 0.9 ) / 4  =>  0.275
+// BR:   ( 0.8 + 0.9 ) / 4  =>  0.425
+// TL:   ( 0.2 + 0.1 ) / 4  =>  0.075
+// TR:   ( 0.8 + 0.1 ) / 4  =>  0.225
+// SUM:     2 + 2                 1
 
-[numthreads(32, 32, 1)] void CSErosion_3_move_sediment(uint3 DTid : SV_DispatchThreadID)
-{
+[numthreads(32, 32, 1)] void CSErosion_3_move_sediment(uint3 DTid : SV_DispatchThreadID) {
     // Skip edges
     const uint range = 2;
     if (DTid.x <= range + 1 ||
         DTid.x >= g_in_buffer_width - range - 2 ||
         DTid.y <= range + 1 ||
-        DTid.y >= g_in_buffer_height - range - 2)
-    {
+        DTid.y >= g_in_buffer_height - range - 2) {
         return;
     }
 
     const uint index_self = DTid.x + DTid.y * g_in_buffer_width;
     const Droplet self_curr_droplet = g_output_buffer_droplets[index_self];
-    const Droplet self_next_droplet = g_output_buffer_droplets_next[index_self];
+    Droplet self_next_droplet = g_output_buffer_droplets_next[index_self];
+    if (self_next_droplet._padding8 == 1) {
+        self_next_droplet._padding8 = 0;
+        g_output_buffer_droplets_next[index_self] = self_next_droplet;
+        return;
+    }
 
     const float weight_BL = 0.25 * ((1 - self_curr_droplet.position.x) + (1 - self_curr_droplet.position.y));
     const float weight_BR = 0.25 * ((0 + self_curr_droplet.position.x) + (1 - self_curr_droplet.position.y));
@@ -81,14 +82,13 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
     const float height_TR = g_output_buffer_heightmap[index_TR];
 
     const float height_diff = self_curr_droplet.sediment - self_next_droplet.sediment;
-    g_output_buffer_heightmap[index_BL] = max(0.12345, g_output_buffer_heightmap[index_BL] + height_diff * weight_BL);
-    g_output_buffer_heightmap[index_BR] = max(0.12345, g_output_buffer_heightmap[index_BR] + height_diff * weight_BR);
-    g_output_buffer_heightmap[index_TL] = max(0.12345, g_output_buffer_heightmap[index_TL] + height_diff * weight_TL);
-    g_output_buffer_heightmap[index_TR] = max(0.12345, g_output_buffer_heightmap[index_TR] + height_diff * weight_TR);
-
+    g_output_buffer_heightmap[index_BL] = max(0.12345, height_BL + height_diff * weight_BL);
+    g_output_buffer_heightmap[index_BR] = max(0.12345, height_BR + height_diff * weight_BR);
+    g_output_buffer_heightmap[index_TL] = max(0.12345, height_TL + height_diff * weight_TL);
+    g_output_buffer_heightmap[index_TR] = max(0.12345, height_TR + height_diff * weight_TR);
 
     // if (height_diff > 0.00001)
     {
-        g_output_buffer_debug[index_self] = g_output_buffer_heightmap[index_BL] / 10;
+        // g_output_buffer_debug[index_self] = g_output_buffer_heightmap[index_BL] / 10;
     }
 }

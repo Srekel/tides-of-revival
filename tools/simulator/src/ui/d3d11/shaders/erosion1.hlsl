@@ -1,96 +1,6 @@
-//////////////////////////////
-// EROSION
-//
-//////////////////////////////
-// STEP 1
-// Rain: Create droplets
-//
-//                              Self  Neighbours
-// droplet_sizes                  W       -
-// droplet_positions              W       -
-// droplet_energies               W       -
-//
-//////////////////////////////
-// STEP 2:
-// Figure out where droplets go, or rather where they come from
-// and how much sediment they ought to pick up/drop off
-//
-//                              Self  Neighbours
-// heightmap                      R       R
-// droplet_positions              R       R
-// droplet_energies               R       R
-// droplet_sizes                  R       R
-// droplet_sediment               R       R
-// Write: inflow                  W       -
-// Write: droplet_positions_new   -       W
-//
-//////////////////////////////
-// STEP 3:
-// Take the flow and move sediment to/from heightmap and/or droplet
-//
-//                              Self  Neighbours
-// inflow                         R       -
-// heightmap                      -       W
-// droplet_sediment               -       W
-//
-//////////////////////////////
-// STEP 4:
-// Calculate droplet update
-// add energy based on height difference
-// evaporate
-// merge droplets
-//
-//                              Self  Neighbours
-// droplet_positions_new          R       R
-// droplet_positions              W       R            !!!
-// droplet_energies               R       R
-// droplet_sizes                  R       R
-// droplet_sediment               R       R
-// droplet_positions_new          W       -
-// droplet_energies_new           W       -
-// droplet_sizes_new              W       -
-// droplet_sediment_new           W       -
-//////////////////////////////
+#include "FastNoiseLite.hlsl"
 
-//////////////////////////////
-// STEP 4:
-// Apply droplet update
-//
-//                              Self  Neighbours
-// droplet_positions_new          R       -
-// droplet_energies_new           R       -
-// droplet_sizes_new              R       -
-// droplet_sediment_new           R       -
-// droplet_positions_new          R       -
-// droplet_positions              W       -
-// droplet_energies               W       -
-// droplet_sizes                  W       -
-// droplet_sediment               W       -
-//////////////////////////////
-
-// g_output_buffer_heightmap
-// world space
-//
-// g_output_buffer_droplet_positions
-// position, [0,1] cell offset space
-//
-// g_output_buffer_droplet_energies
-// "speed" of water
-//
-// g_output_buffer_droplet_sizes
-// how much water is in this cell
-//
-// g_output_buffer_droplet_sediment
-// how much sediment each droplet is currently carrying
-//
-// g_output_buffer_inflow
-// how much sediment should be picked up or dropped off
-//
-// g_output_buffer_droplet_positions_new
-// where each droplets will move to, worldspace
-
-cbuffer constant_buffer_0 : register(b0)
-{
+cbuffer constant_buffer_0 : register(b0) {
     uint g_in_buffer_width;
     uint g_in_buffer_height;
     float g_sediment_capacity_factor;
@@ -101,8 +11,7 @@ cbuffer constant_buffer_0 : register(b0)
     float g_momentum;
 };
 
-struct Droplet
-{
+struct Droplet {
     float size;
     float energy;
     float sediment;
@@ -134,13 +43,11 @@ float2 rand2dTo2d(float2 value)
         rand2dTo1d(value, float2(39.346, 11.135)));
 }
 
-[numthreads(32, 32, 1)] void CSErosion_1_rain(uint3 DTid : SV_DispatchThreadID)
-{
+[numthreads(32, 32, 1)] void CSErosion_1_rain(uint3 DTid : SV_DispatchThreadID) {
     const uint index_self = DTid.x + DTid.y * g_in_buffer_width;
 
     const bool first_time = g_output_buffer_droplets[index_self].IS_INITALIZED == 0;
-    if (first_time)
-    {
+    if (first_time) {
         const float height = g_input_buffer_heightmap[index_self];
         g_output_buffer_heightmap[index_self] = height;
         g_output_buffer_droplets[index_self].IS_INITALIZED = 1.0;
@@ -151,26 +58,25 @@ float2 rand2dTo2d(float2 value)
     if (DTid.x <= range + 1 ||
         DTid.x >= g_in_buffer_width - range - 2 ||
         DTid.y <= range + 1 ||
-        DTid.y >= g_in_buffer_height - range - 2)
-    {
+        DTid.y >= g_in_buffer_height - range - 2) {
         g_output_buffer_debug[index_self] = DTid.x % 2 == 0 ? 0 : 255;
         return;
     }
 
-    if (first_time || true)
-    {
-        if (g_output_buffer_heightmap[index_self] > 100 && DTid.x % 2 >= 0 && DTid.y % 2 >= 0)
-        {
-            const float rain_amount = 1;
-            const float total_size = g_output_buffer_droplets[index_self].size + rain_amount;
+    if (first_time || true) {
+        if (g_output_buffer_heightmap[index_self] > 100 && DTid.x % 20 >= 0 && DTid.y % 20 >= 0) {
+            if (g_output_buffer_droplets[index_self].size <= 0.00001) {
+                const float rain_amount = 1;
+                const float total_size = g_output_buffer_droplets[index_self].size + rain_amount;
 
-            const float2 pos_prev = g_output_buffer_droplets[index_self].position;
-            const float2 pos_new = float2(0.01, 0.01) + 0.98 * rand2dTo2d(float2(DTid.x, DTid.y));
+                const float2 pos_prev = g_output_buffer_droplets[index_self].position;
+                const float2 pos_new = float2(0.01, 0.01) + 0.98 * rand2dTo2d(float2(DTid.x, DTid.y));
 
-            g_output_buffer_droplets[index_self].position = lerp(pos_prev, pos_new, rain_amount / total_size);
-            g_output_buffer_droplets[index_self].size = total_size;
-            g_output_buffer_droplets[index_self].energy = max(1, g_output_buffer_droplets[index_self].energy);
-            // g_output_buffer_debug[index_self] = 230;
+                g_output_buffer_droplets[index_self].position = lerp(pos_prev, pos_new, rain_amount / total_size);
+                g_output_buffer_droplets[index_self].size = total_size;
+                g_output_buffer_droplets[index_self].energy = max(1, g_output_buffer_droplets[index_self].energy);
+                // g_output_buffer_debug[index_self] = 230;
+            }
         }
     }
 

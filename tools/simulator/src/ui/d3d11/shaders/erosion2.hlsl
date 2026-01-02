@@ -25,7 +25,8 @@ StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
 RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1);
 RWStructuredBuffer<Droplet> g_output_buffer_droplets_next : register(u2);
-RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
+RWStructuredBuffer<float2> g_output_buffer_momentum : register(u3);
+RWStructuredBuffer<float> g_output_buffer_debug : register(u4);
 
 float height_at_pos(uint x, uint y, float2 droplet_pos)
 {
@@ -133,7 +134,6 @@ float2 rand2dTo2d(float2 value)
     }
 
     float curr_droplet_height = 0;
-    float next_droplet_height = 0;
     const float2 curr_gradient = height_gradient_at_pos(DTid.x, DTid.y, curr_droplet.position, curr_droplet_height);
     if (length_squared(curr_gradient) < 0.001)
     {
@@ -141,38 +141,35 @@ float2 rand2dTo2d(float2 value)
         return;
     }
 
-    const float2 curr_gradient_01 = 0.99 * normalize(normalize(curr_gradient) + rand2dTo2d(curr_gradient) * 0.9);
+    const float2 curr_gradient_01 = 0.99 * normalize(normalize(curr_gradient) + rand2dTo2d(curr_gradient) * 0.5);
     const float2 curr_cell_pos = float2(DTid.x, DTid.y);
     const float2 next_pos_world = curr_cell_pos + curr_droplet.position + curr_gradient_01;
-    const uint next_pos_world_x = uint(floor(next_pos_world.x));
-    const uint next_pos_world_y = uint(floor(next_pos_world.y));
+    const uint2 next_pos_cell = uint2(floor(next_pos_world));
 
-    // next_droplet.position = float2(next_pos_world.x - next_pos_world_x, next_pos_world.y - next_pos_world_y);
-    const float2 next_droplet_position_offset = float2(
-        next_pos_world.x - next_pos_world_x,
-        next_pos_world.y - next_pos_world_y
-    );
-    const float2 next_gradient = height_gradient_at_pos(next_pos_world_x, next_pos_world_y, next_droplet_position_offset, next_droplet_height);
+    const float2 next_droplet_position_offset = next_pos_world - next_pos_cell;
+    float next_droplet_height = 0;
+    const float2 next_gradient = height_gradient_at_pos(next_pos_cell.x, next_pos_cell.y, next_droplet_position_offset, next_droplet_height);
     const float height_diff = next_droplet_height - curr_droplet_height;
     const bool flowing_downhill = height_diff <= 0;
 
     const float curr_sediment = curr_droplet.sediment;
     const float max_terrain_shift = abs(height_diff * 0.5 * 0.25); // worst case 4 neighbors pouring into one
 
-    const float curr_energy = curr_droplet.energy;
-    const float sediment_carrying_capacity = flowing_downhill ? -height_diff * curr_size * curr_energy * g_sediment_capacity_factor : 0;
+    const float energy_added = -height_diff;
+    const float energy_next = curr_droplet.energy + energy_added;
+    const float sediment_carrying_capacity = flowing_downhill ? curr_size * energy_next * g_sediment_capacity_factor : 0;
 
     if (!flowing_downhill)
     {
         // Droplet full, drop some sediment
-        float to_drop = curr_sediment;
+        float to_drop = curr_sediment * 0.1;
 
         // Don't flip heights
         to_drop = min(to_drop, max_terrain_shift);
 
-        next_droplet.position = next_pos_world - curr_gradient_01 * 0.5;
+        next_droplet.position = next_pos_world;
         next_droplet.sediment = curr_droplet.sediment - to_drop;
-        next_droplet.energy *= 0.5;
+        next_droplet.energy = max(curr_droplet.energy * 0.5, energy_next);
         next_droplet.size = curr_droplet.size * g_evaporation;
 
         // g_output_buffer_debug[index_self] = 150;
@@ -180,15 +177,14 @@ float2 rand2dTo2d(float2 value)
     else if (curr_sediment <= sediment_carrying_capacity)
     {
         // Flowing down, droplet has space for more sediment, pick up.
-        const float remaining_sediment_capacity_in_droplet = g_droplet_max_sediment - curr_sediment;
         const float to_pick_up_optimal = g_erosion_speed * sediment_carrying_capacity;
 
         // Don't flip heights
         const float to_pick_up = min(to_pick_up_optimal, max_terrain_shift);
 
         next_droplet.position = next_pos_world; // yes store world
-        next_droplet.sediment = min(curr_sediment + to_pick_up, remaining_sediment_capacity_in_droplet);
-        next_droplet.energy = curr_droplet.energy - height_diff;
+        next_droplet.sediment = min(curr_sediment + to_pick_up, g_droplet_max_sediment * curr_droplet.size);
+        next_droplet.energy = energy_next;
         next_droplet.size = curr_droplet.size * g_evaporation;
         // g_output_buffer_debug[index_self] = 190;
         // g_output_buffer_debug[index_self] = max(g_output_buffer_debug[index_self], next_droplet.sediment * 1000);
@@ -202,17 +198,11 @@ float2 rand2dTo2d(float2 value)
         to_drop = min(to_drop, max_terrain_shift);
 
         next_droplet.position = next_pos_world;
-        next_droplet.sediment = curr_droplet.sediment - to_drop;
-        next_droplet.energy = curr_droplet.energy - height_diff;
+        next_droplet.sediment = min(curr_droplet.sediment - to_drop, g_droplet_max_sediment);
+        next_droplet.energy = energy_next;
         next_droplet.size = curr_droplet.size * g_evaporation;
         // g_output_buffer_debug[index_self] = 110;
     }
-    // else
-    // {
-    //     g_output_buffer_debug[index_self] = 140;
-    // }
 
     g_output_buffer_droplets_next[index_self] = next_droplet;
-
-    // Next step: Collate incoming "next" droplets, reset and recalculate curr droplet, update heights.
 }
