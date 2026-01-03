@@ -23,8 +23,8 @@ StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
 RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1);
 RWStructuredBuffer<Droplet> g_output_buffer_droplets_next : register(u2);
-// RWStructuredBuffer<float> g_output_buffer_inflow : register(u3);
-RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
+RWStructuredBuffer<float2> g_output_buffer_momentum : register(u3);
+RWStructuredBuffer<float> g_output_buffer_debug : register(u4);
 
 [numthreads(32, 32, 1)] void CSErosion_4_calculate_droplets(uint3 DTid : SV_DispatchThreadID) {
     // Skip edges
@@ -39,11 +39,16 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
     const uint index_self = DTid.x + DTid.y * g_in_buffer_width;
 
     Droplet self_curr_droplet = g_output_buffer_droplets[index_self];
+    const float2 prev_pos = self_curr_droplet.position;
 
     self_curr_droplet.position = float2(0,0); // this is fine because we also set size to 0.
     self_curr_droplet.energy = 0;
     self_curr_droplet.size = 0;
     self_curr_droplet.sediment = 0;
+
+    float energy = 0;
+    float2 position = float2(0,0);
+    int nbor_count = 0;
 
     for (int yy = 0; yy <= 2; yy++) {
         for (int xx = 0; xx <= 2; xx++) {
@@ -55,26 +60,39 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
                 continue;
             }
 
-            const int nbor_next_pos_world_x = int(floor(nbor_next_droplet.position.x));
-            const int nbor_next_pos_world_y = int(floor(nbor_next_droplet.position.y));
+            const int2 nbor_next_pos_world = int2(floor(nbor_next_droplet.position));
 
-            if (nbor_next_pos_world_x != DTid.x || nbor_next_pos_world_y != DTid.y) {
+            if (nbor_next_pos_world.x != DTid.x || nbor_next_pos_world.y != DTid.y) {
                 // Neighbor didn't flow into self
                 continue;
             }
 
+            nbor_count += 1;
+
             const float nbor_size = nbor_next_droplet.size;
             const float total_size = nbor_size + self_curr_droplet.size;
             const float lerp_t = nbor_size / total_size;
-            const float2 nbor_next_pos = float2(// Convert from world space to cell space (0,1)
-                nbor_next_droplet.position.x - nbor_next_pos_world_x,
-                nbor_next_droplet.position.y - nbor_next_pos_world_y);
-            self_curr_droplet.position = lerp(self_curr_droplet.position, nbor_next_pos, lerp_t);
-            self_curr_droplet.energy = lerp(self_curr_droplet.energy, nbor_next_droplet.energy, lerp_t);
+
+            // Convert from world space to cell space (0,1)
+            const float2 nbor_next_pos = nbor_next_droplet.position - nbor_next_pos_world;
+
+            position += nbor_next_pos;
+            energy += nbor_next_droplet.energy;
             self_curr_droplet.size += nbor_next_droplet.size;
             self_curr_droplet.sediment += nbor_next_droplet.sediment;
         }
     }
 
+    if (nbor_count > 0) {
+        energy = energy / nbor_count;
+        position = position / nbor_count;
+    }
+
+    const float2 momentum = position - prev_pos;
+
+    self_curr_droplet.position = position;
+    self_curr_droplet.energy = energy;
+
+    g_output_buffer_momentum[index_self] = momentum;
     g_output_buffer_droplets[index_self] = self_curr_droplet;
 }

@@ -477,12 +477,14 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32, scrat
 
     var droplets = makeImage(erosion_data.width * ErosionDroplet.float_count, erosion_data.height);
     var droplets_next = makeImage(erosion_data.width * ErosionDroplet.float_count, erosion_data.height);
+    var momentums = makeImage(erosion_data.width * 2, erosion_data.height);
     var debug = makeImage(erosion_data.width, erosion_data.height);
     var scratch_image3 = makeImage(scratch_image.size.width, scratch_image.size.height);
     var scratch_image4 = makeImage(scratch_image.size.width, scratch_image.size.height);
     var scratch_image5 = makeImage(scratch_image.size.width, scratch_image.size.height);
     defer std.heap.c_allocator.free(droplets.pixels);
     defer std.heap.c_allocator.free(droplets_next.pixels);
+    defer std.heap.c_allocator.free(momentums.pixels);
     defer std.heap.c_allocator.free(debug.pixels);
     defer std.heap.c_allocator.free(scratch_image3.pixels);
     defer std.heap.c_allocator.free(scratch_image4.pixels);
@@ -509,6 +511,7 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32, scrat
         eroded_heightmap,
         &droplets,
         &droplets_next,
+        &momentums,
         &debug,
     };
 
@@ -516,6 +519,7 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32, scrat
         .float,
         .erosion_struct,
         .erosion_struct,
+        .float2,
         .float,
     };
     compute_f32_n_typed(

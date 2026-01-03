@@ -134,10 +134,30 @@ float2 rand2dTo2d(float2 value)
     }
 
     float curr_droplet_height = 0;
-    const float2 curr_gradient = height_gradient_at_pos(DTid.x, DTid.y, curr_droplet.position, curr_droplet_height);
+    float2 curr_gradient = height_gradient_at_pos(DTid.x, DTid.y, curr_droplet.position, curr_droplet_height);
     if (length_squared(curr_gradient) < 0.001)
     {
-        // g_output_buffer_debug[index_self] = 20;
+        // Flat land
+        // float to_drop = curr_sediment * 0.01;
+
+        // const float2 velocity = next_droplet.position;
+        // curr_gradient = velocity;
+
+        // const float2 curr_cell_pos = float2(DTid.x, DTid.y);
+        // next_droplet.position = curr_cell_pos + curr_droplet.position + velocity;
+        // // next_droplet.position = next_pos_world - curr_gradient_01 * 0.5;
+        // // next_droplet.sediment = curr_droplet.sediment - to_drop;
+        // // next_droplet.energy *= 0.5;
+        // // next_droplet.size = curr_droplet.size * g_evaporation;
+        // // g_output_buffer_droplets_next[index_self] = next_droplet;
+
+        // next_droplet.position = float2(0, 0);
+        // next_droplet.sediment = 0;
+        // next_droplet.energy = 0;
+        // next_droplet.size = 0;
+        // g_output_buffer_droplets_next[index_self] = next_droplet;
+
+        // g_output_buffer_debug[index_self] = 150;
         return;
     }
 

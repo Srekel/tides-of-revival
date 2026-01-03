@@ -23,8 +23,8 @@ StructuredBuffer<float> g_input_buffer_heightmap : register(t0);
 RWStructuredBuffer<float> g_output_buffer_heightmap : register(u0);
 RWStructuredBuffer<Droplet> g_output_buffer_droplets : register(u1);
 RWStructuredBuffer<Droplet> g_output_buffer_droplets_next : register(u2);
-// RWStructuredBuffer<float> g_output_buffer_inflow : register(u3);
-RWStructuredBuffer<float> g_output_buffer_debug : register(u3);
+RWStructuredBuffer<float2> g_output_buffer_momentum : register(u3);
+RWStructuredBuffer<float> g_output_buffer_debug : register(u4);
 
 [numthreads(32, 32, 1)] void CSErosion_5_apply_droplets(uint3 DTid : SV_DispatchThreadID) {
     // Skip edges
