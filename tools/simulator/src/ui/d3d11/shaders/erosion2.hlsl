@@ -176,7 +176,7 @@ float2 rand2dTo2d(float2 value)
     const float max_terrain_shift = abs(height_diff * 0.5 * 0.25); // worst case 4 neighbors pouring into one
 
     const float energy_added = -height_diff;
-    const float energy_next = curr_droplet.energy + energy_added;
+    const float energy_next = curr_droplet.energy * energy_added;
     const float sediment_carrying_capacity = flowing_downhill ? curr_size * energy_next * g_sediment_capacity_factor : 0;
 
     if (!flowing_downhill)
@@ -187,9 +187,9 @@ float2 rand2dTo2d(float2 value)
         // Don't flip heights
         to_drop = min(to_drop, max_terrain_shift);
 
-        next_droplet.position = next_pos_world;
+        next_droplet.position = next_pos_world - curr_gradient_01 * 0.5;
         next_droplet.sediment = curr_droplet.sediment - to_drop;
-        next_droplet.energy = max(curr_droplet.energy * 0.5, energy_next);
+        next_droplet.energy *= 0.5;
         next_droplet.size = curr_droplet.size * g_evaporation;
 
         // g_output_buffer_debug[index_self] = 150;
@@ -204,7 +204,7 @@ float2 rand2dTo2d(float2 value)
 
         next_droplet.position = next_pos_world; // yes store world
         next_droplet.sediment = min(curr_sediment + to_pick_up, g_droplet_max_sediment * curr_droplet.size);
-        next_droplet.energy = energy_next;
+        next_droplet.energy = curr_droplet.energy - height_diff;
         next_droplet.size = curr_droplet.size * g_evaporation;
         // g_output_buffer_debug[index_self] = 190;
         // g_output_buffer_debug[index_self] = max(g_output_buffer_debug[index_self], next_droplet.sediment * 1000);
@@ -218,8 +218,8 @@ float2 rand2dTo2d(float2 value)
         to_drop = min(to_drop, max_terrain_shift);
 
         next_droplet.position = next_pos_world;
-        next_droplet.sediment = min(curr_droplet.sediment - to_drop, g_droplet_max_sediment);
-        next_droplet.energy = energy_next;
+        next_droplet.sediment = curr_droplet.sediment - to_drop;
+        next_droplet.energy = curr_droplet.energy - height_diff;
         next_droplet.size = curr_droplet.size * g_evaporation;
         // g_output_buffer_debug[index_self] = 110;
     }

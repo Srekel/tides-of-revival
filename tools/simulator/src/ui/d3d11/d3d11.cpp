@@ -567,6 +567,10 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
     // Run the compute shaders
     for (unsigned i_iter = 0; i_iter < job.compute_iterations; ++i_iter)
     {
+        if (i_iter % 50 == 49)
+        {
+            OutputDebugStringA("...\n");
+        }
         unsigned shader_count = job.compute_sequence_length;
         for (unsigned i_shader = 0; i_shader < shader_count; ++i_shader)
         {
