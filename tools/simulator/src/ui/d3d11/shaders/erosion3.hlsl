@@ -26,6 +26,35 @@ RWStructuredBuffer<Droplet> g_output_buffer_droplets_next : register(u2);
 RWStructuredBuffer<float2> g_output_buffer_momentum : register(u3);
 RWStructuredBuffer<float> g_output_buffer_debug : register(u4);
 
+// static const float radius_0_weight_total = 1 * 1; // 1
+// static const float weights_radius_0[1] = {
+//     1 / radius_0_weight_total,
+// };
+
+// // 3x3 grid
+// static const float radius_1_weight_total = 1 * 3 + 4 * 2 + 4 * 1; // 15
+// static const float weights_radius_1[3] = {
+//     (3-0) / radius_1_weight_total,
+//     (3-1) / radius_1_weight_total,
+//     (3-2) / radius_1_weight_total,
+// };
+
+// // 5x5 grid
+// static const float radius_2_weight_total = 
+// 1 * 5 + // 0
+// 4 * 4 + // 1
+// 8 * 3 + // 2
+// 8 * 2 + // 3
+// 4 * 1;  // 4 --> 65
+
+// static const float weights_radius_2[5] = {
+//     (5-0) / radius_2_weight_total,
+//     (5-1) / radius_2_weight_total,
+//     (5-2) / radius_2_weight_total,
+//     (5-3) / radius_2_weight_total,
+//     (5-4) / radius_2_weight_total,
+// };
+
 // 
 //    |         |         |
 // ---┼---------┼---------┼---
@@ -49,7 +78,8 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u4);
 
 [numthreads(32, 32, 1)] void CSErosion_3_move_sediment(uint3 DTid : SV_DispatchThreadID) {
     // Skip edges
-    const uint range = 2;
+    const int max_radius = 3;
+    const uint range = 2 + max_radius;
     if (DTid.x <= range + 1 ||
         DTid.x >= g_in_buffer_width - range - 2 ||
         DTid.y <= range + 1 ||
@@ -57,38 +87,83 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u4);
         return;
     }
 
+    const float radius_0_weight_total = 1 * 1; // 1
+    const float weights_radius_0[1] = {
+        1 / radius_0_weight_total,
+    };
+
+    // 3x3 grid
+    const float radius_1_weight_total = 1 * 3 + 4 * 2 + 4 * 1; // 15
+    const float weights_radius_1[3] = {
+        (3-0) / radius_1_weight_total,
+        (3-1) / radius_1_weight_total,
+        (3-2) / radius_1_weight_total,
+    };
+
+    // 5x5 grid
+    const float radius_2_weight_total = 
+    1 * 5 + // 0
+    4 * 4 + // 1
+    8 * 3 + // 2
+    8 * 2 + // 3
+    4 * 1;  // 4 --> 65
+
+    const float weights_radius_2[5] = {
+        (5-0) / radius_2_weight_total,
+        (5-1) / radius_2_weight_total,
+        (5-2) / radius_2_weight_total,
+        (5-3) / radius_2_weight_total,
+        (5-4) / radius_2_weight_total,
+    };
+
     const uint index_self = DTid.x + DTid.y * g_in_buffer_width;
+
+    float terrain_change = 0;
     const Droplet self_curr_droplet = g_output_buffer_droplets[index_self];
     Droplet self_next_droplet = g_output_buffer_droplets_next[index_self];
-    if (self_next_droplet._padding8 == 1) {
-        self_next_droplet._padding8 = 0;
-        g_output_buffer_droplets_next[index_self] = self_next_droplet;
-        return;
+
+    for (int x = int(DTid.x) - max_radius + 1; x <= int(DTid.x) + max_radius - 1; x++) {
+        for (int y = int(DTid.y) - max_radius + 1; y <= int(DTid.y) + max_radius - 1; y++) {
+            const uint index_nbor = x + y * g_in_buffer_width;
+            const Droplet nbor_next_droplet = g_output_buffer_droplets_next[index_nbor]; 
+
+            const int xx = abs(x - int(DTid.x));
+            const int yy = abs(y - int(DTid.y));
+            const int dist = xx + yy; // manhattan
+
+            // droplet_range goes 0 --> (max_radius - 1)
+            const int droplet_range = min(max_radius, floor(1 + sqrt(nbor_next_droplet.size))) - 1;
+            if (droplet_range < dist) {
+                continue;
+            }
+
+            Droplet nbor_curr_droplet = g_output_buffer_droplets[index_nbor];
+            const float height_diff = nbor_curr_droplet.sediment - nbor_next_droplet.sediment;
+            float weight = 0;
+            if (droplet_range == 0) {
+                weight = weights_radius_0[0];
+            }
+            else if (droplet_range == 1) {
+                weight = weights_radius_1[dist];
+            }
+            else if (droplet_range == 2) {
+                weight = weights_radius_2[dist];
+            }
+            else {
+                g_output_buffer_debug[index_self] = 10000;
+                return;
+            }
+
+            const float height_diff_weighted = height_diff * weight;
+            terrain_change += height_diff_weighted;
+        }
     }
 
-    const float weight_BL = 0.25 * ((1 - self_curr_droplet.position.x) + (1 - self_curr_droplet.position.y));
-    const float weight_BR = 0.25 * ((0 + self_curr_droplet.position.x) + (1 - self_curr_droplet.position.y));
-    const float weight_TL = 0.25 * ((1 - self_curr_droplet.position.x) + (0 + self_curr_droplet.position.y));
-    const float weight_TR = 0.25 * ((0 + self_curr_droplet.position.x) + (0 + self_curr_droplet.position.y));
-
-    const uint index_BL = DTid.x + 0 + (DTid.y + 0) * g_in_buffer_width;
-    const uint index_BR = DTid.x + 1 + (DTid.y + 0) * g_in_buffer_width;
-    const uint index_TL = DTid.x + 0 + (DTid.y + 1) * g_in_buffer_width;
-    const uint index_TR = DTid.x + 1 + (DTid.y + 1) * g_in_buffer_width;
-
-    const float height_BL = g_output_buffer_heightmap[index_BL];
-    const float height_BR = g_output_buffer_heightmap[index_BR];
-    const float height_TL = g_output_buffer_heightmap[index_TL];
-    const float height_TR = g_output_buffer_heightmap[index_TR];
-
-    const float height_diff = self_curr_droplet.sediment - self_next_droplet.sediment;
-    g_output_buffer_heightmap[index_BL] = max(0.12345, height_BL + height_diff * weight_BL);
-    g_output_buffer_heightmap[index_BR] = max(0.12345, height_BR + height_diff * weight_BR);
-    g_output_buffer_heightmap[index_TL] = max(0.12345, height_TL + height_diff * weight_TL);
-    g_output_buffer_heightmap[index_TR] = max(0.12345, height_TR + height_diff * weight_TR);
+    const float self_height = g_output_buffer_heightmap[index_self];
+    g_output_buffer_heightmap[index_self] = max(0.12345, self_height + terrain_change);
 
     // if (height_diff > 0.00001)
     {
-        // g_output_buffer_debug[index_self] = g_output_buffer_heightmap[index_BL] / 10;
+        g_output_buffer_debug[index_self] = max(g_output_buffer_debug[index_self], self_next_droplet.size);
     }
 }
