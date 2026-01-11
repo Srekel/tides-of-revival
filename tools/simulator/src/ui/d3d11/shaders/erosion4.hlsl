@@ -41,14 +41,14 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u4);
     Droplet self_curr_droplet = g_output_buffer_droplets[index_self];
     const float2 prev_pos = self_curr_droplet.position;
 
-    self_curr_droplet.position = float2(0,0); // this is fine because we also set size to 0.
+    self_curr_droplet.position = float2(0,0);
     self_curr_droplet.energy = 0;
     self_curr_droplet.size = 0;
     self_curr_droplet.sediment = 0;
 
     float energy = 0;
     float2 position = float2(0,0);
-    int nbor_count = 0;
+    float nbor_weight = 0;
 
     for (int yy = 0; yy <= 2; yy++) {
         for (int xx = 0; xx <= 2; xx++) {
@@ -67,25 +67,24 @@ RWStructuredBuffer<float> g_output_buffer_debug : register(u4);
                 continue;
             }
 
-            nbor_count += 1;
-
             const float nbor_size = nbor_next_droplet.size;
-            const float total_size = nbor_size + self_curr_droplet.size;
-            const float lerp_t = nbor_size / total_size;
+            // const float total_size = nbor_size + self_curr_droplet.size;
+            nbor_weight += nbor_size;
+            // const float lerp_t = nbor_size / total_size;
 
             // Convert from world space to cell space (0,1)
             const float2 nbor_next_pos = nbor_next_droplet.position - nbor_next_pos_world;
 
-            position += nbor_next_pos;
-            energy += nbor_next_droplet.energy;
+            position += nbor_next_pos * nbor_size;
+            energy += nbor_next_droplet.energy * nbor_size;
             self_curr_droplet.size += nbor_next_droplet.size;
             self_curr_droplet.sediment += nbor_next_droplet.sediment;
         }
     }
 
-    if (nbor_count > 0) {
-        energy = energy / nbor_count;
-        position = position / nbor_count;
+    if (nbor_weight > 0) {
+        energy = energy / nbor_weight;
+        position = position / nbor_weight;
     }
 
     const float2 momentum = position - prev_pos;
