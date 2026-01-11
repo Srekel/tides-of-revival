@@ -32,6 +32,7 @@ pub fn compute_f32_1(compute_id: graph.ComputeId, image_in_1: ?*types.ImageF32, 
         .dispatch_size = .{ @intCast(dispatch_image.size.width), @intCast(dispatch_image.size.height) },
     };
 
+    std.log.info("compute_f32_1 {}", .{compute_id});
     compute_fn(&compute_info);
 }
 
@@ -63,16 +64,17 @@ pub fn compute_f32_n(compute_id: graph.ComputeId, images_in: []*types.ImageF32, 
         out_buffer.height = @intCast(image_out.size.height);
     }
 
+    std.log.info("compute_f32_n {}", .{compute_id});
     compute_fn(&compute_info);
 }
 
 pub fn compute_f32_n_typed(compute_id: graph.ComputeId, images_in: []*types.ImageF32, images_out: []*types.ImageF32, out_buffer_types: []const graph.ComputeBufferType, data: anytype) void {
     const compute_sequence_length: u32 = switch (compute_id) {
-        .erosion1 => 5,
+        .erosion1 => 4,
         else => 1,
     };
     const compute_iterations: u32 = switch (compute_id) {
-        .erosion1 => 1000,
+        .erosion1 => 1,
         else => 1,
     };
 
@@ -110,6 +112,7 @@ pub fn compute_f32_n_typed(compute_id: graph.ComputeId, images_in: []*types.Imag
         out_buffer.buffer_type = buffer_type;
     }
 
+    std.log.info("compute_f32_n_typed {}", .{compute_id});
     compute_fn(&compute_info);
 }
 
@@ -481,7 +484,7 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32, scrat
     var debug = makeImage(erosion_data.width, erosion_data.height);
     var scratch_image3 = makeImage(scratch_image.size.width, scratch_image.size.height);
     var scratch_image4 = makeImage(scratch_image.size.width, scratch_image.size.height);
-    var scratch_image5 = makeImage(scratch_image.size.width, scratch_image.size.height);
+    var scratch_image5 = makeImage(erosion_data.width, erosion_data.height);
     defer std.heap.c_allocator.free(droplets.pixels);
     defer std.heap.c_allocator.free(droplets_next.pixels);
     defer std.heap.c_allocator.free(momentums.pixels);
@@ -522,13 +525,16 @@ pub fn erosion(heightmap: *types.ImageF32, scratch_image: *types.ImageF32, scrat
         .float2,
         .float,
     };
-    compute_f32_n_typed(
-        .erosion1,
-        in_buffers[0..],
-        out_buffers[0..],
-        out_buffer_types[0..],
-        erosion_data,
-    );
+
+    for (0..100) |_| {
+        compute_f32_n_typed(
+            .erosion1,
+            in_buffers[0..],
+            out_buffers[0..],
+            out_buffer_types[0..],
+            erosion_data,
+        );
+    }
 
     nodes.math.rerangify(&debug);
     nodes.math.rerangify(eroded_heightmap);
