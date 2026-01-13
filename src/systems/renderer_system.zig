@@ -136,7 +136,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
                 .{ .id = ecs.id(fd.Transform), .inout = .In },
             } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2),
         },
-        .events = [_]ecs.entity_t{ ecs.Monitor, 0, 0, 0, 0, 0, 0, 0 },
+        .events = [_]ecs.entity_t{ ecs.OnSet, 0, 0, 0, 0, 0, 0, 0 },
         .callback = onMonitorRenderable,
         .ctx = update_ctx,
     };
@@ -463,13 +463,8 @@ fn onMonitorRenderable(it: *ecs.iter_t) callconv(.C) void {
 
     const renderables = ecs.field(it, fd.Renderable, 0).?;
     const transforms = ecs.field(it, fd.Transform, 1).?;
-    if (it.event == ecs.OnAdd) {
+    if (it.event == ecs.OnSet) {
         for (renderables, transforms, it.entities()) |renderable, transform, entity| {
-            // HACK: Some data is wrong
-            if (renderable.id.hash == 14829735431805717965) {
-                continue;
-            }
-
             var world: [16]f32 = undefined;
             storeMat44(transform.matrix[0..], world[0..]);
 

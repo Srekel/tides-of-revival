@@ -1598,6 +1598,7 @@ pub const Renderer = struct {
         };
         self.updateBuffer(data_slice, self.renderable_buffer.offset, GpuRenderableItem, self.renderable_buffer.buffer);
         self.renderable_buffer.offset += data_slice.size;
+        self.renderable_buffer.element_count += @intCast(gpu_renderable_items.items.len);
     }
 
     pub fn getRenderable(self: *Renderer, id: IdLocal) Renderable {

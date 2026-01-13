@@ -229,27 +229,27 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     // // ███████╗███████╗ ╚████╔╝ ███████╗███████╗    ██║     ██║  ██║███████╗███████╗   ██║      ██║   ███████╗
     // // ╚══════╝╚══════╝  ╚═══╝  ╚══════╝╚══════╝    ╚═╝     ╚═╝  ╚═╝╚══════╝╚══════╝   ╚═╝      ╚═╝   ╚══════╝
 
-    {
-        const tree_prefab = prefab_mgr.getPrefab(config.prefab.beech_tree_04_id).?;
-        for (1..5) |x| {
-            for (1..5) |z| {
-                const position = fd.Position.init(@floatFromInt(x * 4), 0.0, @floatFromInt(z * 4));
-                var ent = prefab_mgr.instantiatePrefab(ecsu_world, tree_prefab);
-                ent.set(position);
-                ent.set(fd.Rotation{});
-                ent.set(fd.Scale.createScalar(0.2));
-                ent.set(fd.Transform.initWithScale(position.x, position.y, position.z, 0.2));
-            }
-        }
+    // {
+    //     const tree_prefab = prefab_mgr.getPrefab(config.prefab.beech_tree_04_id).?;
+    //     for (1..5) |x| {
+    //         for (1..5) |z| {
+    //             const position = fd.Position.init(@floatFromInt(x * 4), 0.0, @floatFromInt(z * 4));
+    //             var ent = prefab_mgr.instantiatePrefab(ecsu_world, tree_prefab);
+    //             ent.set(position);
+    //             ent.set(fd.Rotation{});
+    //             ent.set(fd.Scale.createScalar(0.2));
+    //             ent.set(fd.Transform.initWithScale(position.x, position.y, position.z, 0.2));
+    //         }
+    //     }
 
-        const house_prefab = prefab_mgr.getPrefab(config.prefab.house_3x5_id).?;
-        const position = fd.Position.init(5 * 4 + 2, 0.0, 5 * 4 + 2);
-        var ent = prefab_mgr.instantiatePrefab(ecsu_world, house_prefab);
-        ent.set(position);
-        ent.set(fd.Rotation{});
-        ent.set(fd.Scale.createScalar(1.0));
-        ent.set(fd.Transform.initWithScale(position.x, position.y, position.z, 1.0));
-    }
+    //     const house_prefab = prefab_mgr.getPrefab(config.prefab.house_3x5_id).?;
+    //     const position = fd.Position.init(5 * 4 + 2, 0.0, 5 * 4 + 2);
+    //     var ent = prefab_mgr.instantiatePrefab(ecsu_world, house_prefab);
+    //     ent.set(position);
+    //     ent.set(fd.Rotation{});
+    //     ent.set(fd.Scale.createScalar(1.0));
+    //     ent.set(fd.Transform.initWithScale(position.x, position.y, position.z, 1.0));
+    // }
 
     // {
     //     const plane_prefab = prefab_mgr.getPrefab(config.prefab.plane_id).?;
