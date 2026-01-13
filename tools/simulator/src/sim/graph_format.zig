@@ -260,15 +260,15 @@ pub fn generateFile(simgraph_path: []const u8, zig_path: []const u8) void {
                     switch (hash(var_kind)) {
                         kind_ImageF32 => {
                             const size = j_var.Object.get("size").?.String;
-                            writeLine(writer, "    {s}.pixels = std.heap.c_allocator.alloc(f32, {s}.width * {s}.height) catch unreachable;", .{ var_name, size, size });
+                            writeLine(writer, "    {s}.pixels = std.heap.c_allocator.alignedAlloc(f32, 32 * 8, {s}.width * {s}.height) catch unreachable;", .{ var_name, size, size });
                         },
                         kind_ImageU32 => {
                             const size = j_var.Object.get("size").?.String;
-                            writeLine(writer, "    {s}.pixels = std.heap.c_allocator.alloc(u32, {s}.width * {s}.height) catch unreachable;", .{ var_name, size, size });
+                            writeLine(writer, "    {s}.pixels = std.heap.c_allocator.alignedAlloc(u32, 32 * 8, {s}.width * {s}.height) catch unreachable;", .{ var_name, size, size });
                         },
                         kind_ImageVec2 => {
                             const size = j_var.Object.get("size").?.String;
-                            writeLine(writer, "    {s}.pixels = std.heap.c_allocator.alloc([2]f32, {s}.width * {s}.height) catch unreachable;", .{ var_name, size, size });
+                            writeLine(writer, "    {s}.pixels = std.heap.c_allocator.alignedAlloc([2]f32, 32 * 8, {s}.width * {s}.height) catch unreachable;", .{ var_name, size, size });
                         },
                         kind_PointList2D => {
                             writeLine(writer, "    {s} = @TypeOf({s}).init(std.heap.c_allocator);", .{ var_name, var_name });

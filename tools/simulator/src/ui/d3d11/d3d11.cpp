@@ -569,25 +569,30 @@ void D3D11::dispatch_float_shader(ComputeInfo job)
     {
         for (unsigned i_buf = 0; i_buf < job.out_count; i_buf++)
         {
+            OutputDebugStringA("Cleanup CopyResource...\n");
             ComputeBuffer &buffer = job.out_buffers[i_buf];
             m_device_context->CopyResource(readback_buffers[i_buf], output_buffers[i_buf]);
             uint32_t buffer_element_size = compute_buffer_element_size(buffer.buffer_type);
 
+            OutputDebugStringA("Cleanup Map...\n");
             D3D11_MAPPED_SUBRESOURCE subresource = {};
             subresource.RowPitch = buffer.width * buffer_element_size;
             subresource.DepthPitch = buffer.height * buffer_element_size;
             m_device_context->Map(readback_buffers[i_buf], 0, D3D11_MAP_READ, 0, &subresource);
 
+            OutputDebugStringA("Cleanup memcpy...\n");
             if (subresource.pData)
             {
                 memcpy((void *)buffer.data, subresource.pData, buffer.width * buffer.height * buffer_element_size);
             }
 
+            OutputDebugStringA("Cleanup Unmap...\n");
             m_device_context->Unmap(readback_buffers[i_buf], 0);
         }
     }
 
     // Cleanup GPU Resources
+    OutputDebugStringA("Cleanup GPU...\n");
     {
         for (unsigned i_buf = 0; i_buf < job.in_count; i_buf++)
         {
