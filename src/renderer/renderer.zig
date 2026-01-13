@@ -400,7 +400,6 @@ pub const Renderer = struct {
         self.pso_manager = pso.PSOManager{};
         self.pso_manager.init(self, allocator) catch unreachable;
 
-
         zgui.init(allocator);
         _ = zgui.io.addFontFromFile("content/fonts/Roboto-Medium.ttf", 16.0);
 
@@ -896,7 +895,7 @@ pub const Renderer = struct {
                 graphics.cmdSetViewport(cmd_list, 0.0, 0.0, shadow_map_resolution, shadow_map_resolution, 0.0, 1.0);
                 graphics.cmdSetScissor(cmd_list, 0, 0, cascaded_shadow_resolution, cascaded_shadow_resolution);
 
-                self.terrain_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
+                // self.terrain_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
                 self.dynamic_geometry_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
                 self.static_geometry_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
 
