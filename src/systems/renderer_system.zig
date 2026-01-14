@@ -60,6 +60,8 @@ pub const SystemUpdateContext = struct {
         query_ui_images: *ecs.query_t,
         ui_images: std.ArrayList(renderer_types.UiImage),
 
+        query_scripts: *ecs.query_t,
+
         added_static_entities: std.ArrayList(renderer_types.RenderableEntity) = undefined,
         removed_static_entities: std.ArrayList(renderer_types.RenderableEntityId) = undefined,
     },
@@ -110,11 +112,19 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 1),
     }) catch unreachable;
 
+    const query_scripts = ecs.query_init(ecsu_world.world, &.{
+        .entity = ecs.new_entity(ecsu_world.world, "query_scripts"),
+        .terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.MadeByAScript), .inout = .InOut },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 1),
+    }) catch unreachable;
+
     const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
     update_ctx.* = SystemUpdateContext.view(create_ctx);
     update_ctx.*.state = .{
         .render_imgui = false,
         .query_point_lights = query_point_lights,
+        .query_scripts = query_scripts,
         .point_lights = std.ArrayList(renderer_types.PointLight).init(pass_allocator),
         .query_ocean_tiles = query_ocean_tiles,
         .ocean_tiles = std.ArrayList(renderer_types.OceanTile).init(pass_allocator),
@@ -134,6 +144,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
             .terms = [_]ecs.term_t{
                 .{ .id = ecs.id(fd.Renderable), .inout = .In },
                 .{ .id = ecs.id(fd.Transform), .inout = .In },
+                // .{ .id = ecs.id(fd.LolTest), .inout = .In },
             } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2),
         },
         .events = [_]ecs.entity_t{ ecs.OnSet, 0, 0, 0, 0, 0, 0, 0 },
@@ -348,6 +359,31 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
         }
 
         update_desc.ocean_tiles = &system.state.ocean_tiles;
+    }
+
+    var query_scripts_iter = ecs.query_iter(system.ecsu_world.world, system.state.query_scripts);
+    while (ecs.query_next(&query_scripts_iter)) {
+        // std.log.info("lol {}", .{it.count()});
+        for (query_scripts_iter.entities()) |ent| {
+            const ent2 = ecsu.Entity.init(system.ecsu_world.world, ent);
+            ent2.remove(fd.MadeByAScript); // only run once per script entity
+
+            const scale = ent2.get(fd.Scale).?;
+            const rot = ent2.get(fd.Rotation).?;
+            const pos = ent2.get(fd.Position).?;
+            const z_scale_matrix = zm.scaling(scale.x, scale.y, scale.z);
+            const z_rot_matrix = zm.matFromQuat(rot.asZM());
+            const z_translate_matrix = zm.translation(pos.x, pos.y, pos.z);
+            const z_sr_matrix = zm.mul(z_scale_matrix, z_rot_matrix);
+            const z_srt_matrix = zm.mul(z_sr_matrix, z_translate_matrix);
+
+            const z_world_matrix = z_srt_matrix;
+
+            var transform: fd.Transform = undefined;
+            zm.storeMat43(&transform.matrix, z_world_matrix);
+
+            ent2.set(transform);
+        }
     }
 
     // Find all static entity changes

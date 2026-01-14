@@ -141,7 +141,6 @@ pub fn run() void {
         });
     }
 
-
     // ███████╗██╗   ██╗███████╗████████╗███████╗███╗   ███╗███████╗
     // ██╔════╝╚██╗ ██╔╝██╔════╝╚══██╔══╝██╔════╝████╗ ████║██╔════╝
     // ███████╗ ╚████╔╝ ███████╗   ██║   █████╗  ██╔████╔██║███████╗
@@ -197,6 +196,12 @@ pub fn run() void {
             .{ .name = "z", .type = ecs.FLECS_IDecs_f32_tID_ },
             .{ .name = "w", .type = ecs.FLECS_IDecs_f32_tID_ },
         } ++ ecs.array(ecs.member_t, 32 - 4)),
+    });
+    _ = ecs.struct_init(ecsu_world.world, .{
+        .entity = ecs.id(fd.MadeByAScript), // Make sure to use existing id
+        .members = ([_]ecs.member_t{
+            .{ .name = "dummy", .type = ecs.FLECS_IDecs_u8_tID_ },
+        } ++ ecs.array(ecs.member_t, 32 - 1)),
     });
 
     var task_queue1: task_queue.TaskQueue = undefined;

@@ -31,6 +31,7 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, Scale);
     ecs.COMPONENT(ecs_world, Transform);
     ecs.COMPONENT(ecs_world, Dynamic);
+    ecs.COMPONENT(ecs_world, MadeByAScript);
     ecs.COMPONENT(ecs_world, Velocity);
     ecs.COMPONENT(ecs_world, LodGroup);
     ecs.COMPONENT(ecs_world, Renderable);
@@ -405,6 +406,10 @@ pub const Transform = struct {
 };
 
 pub const Dynamic = struct { // TODO: Replace with empty tag
+    dummy: u8 = 0,
+};
+
+pub const MadeByAScript = struct { // TODO: Replace with empty tag
     dummy: u8 = 0,
 };
 

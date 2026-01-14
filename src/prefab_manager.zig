@@ -59,10 +59,8 @@ pub const PrefabManager = struct {
         entity.set(rotation);
         entity.set(scale);
 
-        // // Set transform
-        // var transform = fd.Transform.initWithQuaternion(rotation.elems().*);
-        // transform.setPos(position.elems().*);
-        // transform.setScale(scale.elems().*);
+        // Set transform
+        // const transform = fd.Transform.init(0, 0, 0);
         // entity.set(transform);
 
         entity.set(std.mem.zeroes(fd.Renderable));
