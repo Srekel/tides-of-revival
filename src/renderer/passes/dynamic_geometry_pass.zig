@@ -65,10 +65,10 @@ pub const DynamicGeometryPass = struct {
     shadow_map_batches: [renderer.Renderer.cascades_max_count]BatchMap,
 
     gbuffer_instances: std.ArrayList(InstanceData),
-    gbuffer_instance_buffer: renderer.BufferHandle,
+    gbuffer_instance_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
 
     shadow_map_instances: [renderer.Renderer.cascades_max_count]std.ArrayList(InstanceData),
-    shadow_map_instance_buffers: [renderer.Renderer.cascades_max_count]renderer.BufferHandle,
+    shadow_map_instance_buffers: [renderer.Renderer.cascades_max_count][renderer.Renderer.data_buffer_count]renderer.BufferHandle,
 
     pub fn init(self: *@This(), rctx: *renderer.Renderer, allocator: std.mem.Allocator) void {
         self.allocator = allocator;
@@ -95,11 +95,25 @@ pub const DynamicGeometryPass = struct {
         }
 
         self.gbuffer_instances = std.ArrayList(InstanceData).init(allocator);
-        self.gbuffer_instance_buffer = rctx.createBindlessBuffer(max_instances * @sizeOf(InstanceData), "GBuffer Dynamic Instances");
+        self.gbuffer_instance_buffers = blk: {
+            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createBindlessBuffer(max_instances * @sizeOf(InstanceData), "GBuffer Dynamic Instances");
+            }
+
+            break :blk buffers;
+        };
 
         for (0..renderer.Renderer.cascades_max_count) |i| {
             self.shadow_map_instances[i] = std.ArrayList(InstanceData).init(allocator);
-            self.shadow_map_instance_buffers[i] = rctx.createBindlessBuffer(max_instances * @sizeOf(InstanceData), "Shadow Map Dynamic Instances");
+            self.shadow_map_instance_buffers[i] = blk: {
+                var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createBindlessBuffer(max_instances * @sizeOf(InstanceData), "Shadow Map Dynamic Instances");
+                }
+
+                break :blk buffers;
+            };
         }
 
         self.gbuffer_batches = BatchMap.init(allocator);
@@ -181,7 +195,7 @@ pub const DynamicGeometryPass = struct {
                     .data = @ptrCast(self.gbuffer_instances.items),
                     .size = self.gbuffer_instances.items.len * @sizeOf(InstanceData),
                 };
-                self.renderer.updateBuffer(instance_data_slice, 0, InstanceData, self.gbuffer_instance_buffer);
+                self.renderer.updateBuffer(instance_data_slice, 0, InstanceData, self.gbuffer_instance_buffers[frame_index]);
             }
         }
 
@@ -203,7 +217,7 @@ pub const DynamicGeometryPass = struct {
                 const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_00_00);
                 defer trazy_zone2.End();
 
-                const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.gbuffer_instance_buffer);
+                const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.gbuffer_instance_buffers[frame_index]);
                 const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.material_buffer.buffer);
 
                 var batch_keys_iterator = self.gbuffer_batches.keyIterator();
@@ -261,7 +275,7 @@ pub const DynamicGeometryPass = struct {
                 const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_00_00);
                 defer trazy_zone2.End();
 
-                const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.gbuffer_instance_buffer);
+                const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.gbuffer_instance_buffers[frame_index]);
                 const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.material_buffer.buffer);
 
                 var batch_keys_iterator = self.gbuffer_batches.keyIterator();
@@ -347,7 +361,7 @@ pub const DynamicGeometryPass = struct {
                     .data = @ptrCast(self.shadow_map_instances[cascade_index].items),
                     .size = self.shadow_map_instances[cascade_index].items.len * @sizeOf(InstanceData),
                 };
-                self.renderer.updateBuffer(instance_data_slice, 0, InstanceData, self.shadow_map_instance_buffers[cascade_index]);
+                self.renderer.updateBuffer(instance_data_slice, 0, InstanceData, self.shadow_map_instance_buffers[cascade_index][frame_index]);
             }
         }
 
@@ -381,7 +395,7 @@ pub const DynamicGeometryPass = struct {
                 const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_00_00);
                 defer trazy_zone2.End();
 
-                const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.shadow_map_instance_buffers[cascade_index]);
+                const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.shadow_map_instance_buffers[cascade_index][frame_index]);
                 const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.material_buffer.buffer);
 
                 var batch_keys_iterator = self.shadow_map_batches[cascade_index].keyIterator();
@@ -439,7 +453,7 @@ pub const DynamicGeometryPass = struct {
                 const trazy_zone2 = ztracy.ZoneNC(@src(), "Render Batches", 0x00_ff_00_00);
                 defer trazy_zone2.End();
 
-                const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.shadow_map_instance_buffers[cascade_index]);
+                const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.shadow_map_instance_buffers[cascade_index][frame_index]);
                 const material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.material_buffer.buffer);
 
                 var batch_keys_iterator = self.shadow_map_batches[cascade_index].keyIterator();

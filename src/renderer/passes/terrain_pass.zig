@@ -73,7 +73,7 @@ pub const TerrainPass = struct {
     terrain_material_buffers: [frames_count]renderer.BufferHandle,
 
     frame_instance_count: u32,
-    instance_data_buffer: renderer.BufferHandle,
+    instance_data_buffers: [frames_count]renderer.BufferHandle,
     instance_data: std.ArrayList(TerrainInstanceData),
     instance_data_by_lod: [4]std.ArrayList(TerrainInstanceData),
 
@@ -147,7 +147,14 @@ pub const TerrainPass = struct {
             self.instance_data_by_lod[lod_index] = std.ArrayList(TerrainInstanceData).init(allocator);
         }
         self.instance_data = std.ArrayList(TerrainInstanceData).initCapacity(allocator, max_instances) catch unreachable;
-        self.instance_data_buffer = rctx.createBindlessBuffer(max_instances * @sizeOf(TerrainInstanceData), "Terrain Quad Tree Instance Data Buffer");
+        self.instance_data_buffers = blk: {
+            var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
+            for (buffers, 0..) |_, buffer_index| {
+                buffers[buffer_index] = rctx.createBindlessBuffer(max_instances * @sizeOf(TerrainInstanceData), "Terrain Quad Tree Instance Data Buffer");
+            }
+
+            break :blk buffers;
+        };
 
         // Uniform Buffers
         {
@@ -181,6 +188,8 @@ pub const TerrainPass = struct {
     pub fn update(self: *@This(), render_view: renderer.RenderView) void {
         const trazy_zone = ztracy.ZoneNC(@src(), "Terrain Pass: Update", 0x00_ff_ff_00);
         defer trazy_zone.End();
+
+        const frame_index = self.renderer.frame_index;
 
         var arena_state = std.heap.ArenaAllocator.init(self.allocator);
         defer arena_state.deinit();
@@ -268,7 +277,7 @@ pub const TerrainPass = struct {
                     .data = @ptrCast(self.instance_data.items),
                     .size = self.instance_data.items.len * @sizeOf(TerrainInstanceData),
                 };
-                self.renderer.updateBuffer(data_slice, 0, TerrainInstanceData, self.instance_data_buffer);
+                self.renderer.updateBuffer(data_slice, 0, TerrainInstanceData, self.instance_data_buffers[frame_index]);
             }
         }
 
@@ -391,7 +400,7 @@ pub const TerrainPass = struct {
             const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
             std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
 
-            const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_data_buffer);
+            const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_data_buffers[frame_index]);
 
             var start_instance_location: u32 = 0;
             for (0..4) |lod_index| {
@@ -513,7 +522,7 @@ pub const TerrainPass = struct {
             const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
             std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
 
-            const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_data_buffer);
+            const instance_data_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_data_buffers[frame_index]);
 
             var start_instance_location: u32 = 0;
             for (0..4) |lod_index| {
