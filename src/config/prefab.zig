@@ -43,6 +43,7 @@ pub const house_3x5_id = ID("house_3x5_id");
 
 pub const brazier_1_id = ID("brazier_1_id");
 pub const brazier_2_id = ID("brazier_2_id");
+pub const campfire_id = ID("campfire_id");
 pub const stacked_stones_id = ID("stacked_stones");
 
 // pub const prefabs = [_]IdLocal{
@@ -676,13 +677,14 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         renderable_desc.lods[0].screen_percentage_range[1] = 30000.0;
         prefab_mgr.rctx.registerRenderable(brazier_1_id, renderable_desc);
 
-        campfire = prefab_mgr.createRenderablePrefab(brazier_1_id, ecsu_world);
-        var renderable = campfire.getMut(fd.Renderable).?;
+        const entity = prefab_mgr.createRenderablePrefab(brazier_1_id, ecsu_world);
+        var renderable = entity.getMut(fd.Renderable).?;
         renderable.id = brazier_1_id;
+        renderable.draw_bounds = true;
 
         // TEMP: Lantern light
         const light_ent = ecsu_world.newEntity();
-        light_ent.childOf(campfire);
+        light_ent.childOf(entity);
         light_ent.set(fd.Position{ .x = 0, .y = 2, .z = 0 });
         light_ent.set(fd.Rotation{});
         light_ent.set(fd.Scale.createScalar(1));
@@ -733,4 +735,52 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
             .intensity = 5,
         });
     }
+
+    {
+        campfire = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/braziers/brazier_1", campfire_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+        campfire.setOverride(fd.Dynamic{});
+
+        const campfire_wood_trim_material_id = ID("wood_trim");
+        const campfire_metal_ornaments_material_id = ID("metal_ornaments");
+
+        var wood_trim_material = renderer.UberShaderMaterialData.init();
+        wood_trim_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
+        wood_trim_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
+        wood_trim_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_WoodTrim_BaseColor.dds");
+        wood_trim_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_WoodTrim_Roughness.dds");
+        wood_trim_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_WoodTrim_Normal.dds");
+        prefab_mgr.rctx.loadMaterial(campfire_wood_trim_material_id, wood_trim_material) catch unreachable;
+
+        var metal_ornaments_material = renderer.UberShaderMaterialData.init();
+        metal_ornaments_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
+        metal_ornaments_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
+        metal_ornaments_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_MetalOrnaments_BaseColor.dds");
+        metal_ornaments_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_MetalOrnaments_Roughness.dds");
+        prefab_mgr.rctx.loadMaterial(campfire_metal_ornaments_material_id, metal_ornaments_material) catch unreachable;
+
+        const lod_group_component = campfire.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                std.debug.assert(lod_group.lods[i].materials_count == 2);
+                lod_group.lods[i].materials[0] = campfire_wood_trim_material_id;
+                lod_group.lods[i].materials[1] = campfire_metal_ornaments_material_id;
+            }
+        }
+
+        // TEMP: Lantern light
+        const light_ent = ecsu_world.newEntity();
+        light_ent.childOf(campfire);
+        light_ent.set(fd.Position{ .x = 0, .y = 2, .z = 0 });
+        light_ent.set(fd.Rotation{});
+        light_ent.set(fd.Scale.createScalar(1));
+        light_ent.set(fd.Transform{});
+        light_ent.set(fd.Dynamic{});
+
+        light_ent.set(fd.PointLight{
+            .color = .{ .r = 1.0, .g = 0.8, .b = 0.6 },
+            .range = 10,
+            .intensity = 5,
+        });
+    }
+
 }
