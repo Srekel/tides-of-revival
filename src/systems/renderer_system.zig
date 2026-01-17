@@ -64,6 +64,8 @@ pub const SystemUpdateContext = struct {
 
         added_static_entities: std.ArrayList(renderer_types.RenderableEntity) = undefined,
         removed_static_entities: std.ArrayList(renderer_types.RenderableEntityId) = undefined,
+
+        monitor_ent: ecs.entity_t = undefined,
     },
 };
 
@@ -138,7 +140,6 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         .removed_static_entities = std.ArrayList(renderer_types.RenderableEntityId).init(pass_allocator),
     };
 
-    // Create observer that is invoked whenever Position is set
     const observer_desc: ecs.observer_desc_t = .{
         .query = .{
             .terms = [_]ecs.term_t{
@@ -151,13 +152,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         .callback = onMonitorRenderable,
         .ctx = update_ctx,
     };
-    _ = ecs.observer_init(ecsu_world.world, &observer_desc);
-
-    // Alternatively this macro shortcut can be used:
-    // ECS_OBSERVER(world, OnSetPosition, EcsOnSet, Position);
-
-    // const observer_ent = ecs.new_entity(world);
-    // ecs.set(world, observer_ent, fd.Renderable, {10, 20}); // Invokes observer
+    update_ctx.*.state.monitor_ent = ecs.observer_init(ecsu_world.world, &observer_desc);
 
     {
         var system_desc = ecs.system_desc_t{};
@@ -187,6 +182,8 @@ pub fn create(create_ctx: SystemCreateCtx) void {
 
 pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
     const system: *SystemUpdateContext = @ptrCast(@alignCast(ctx));
+
+    system.ecsu_world.delete(system.state.monitor_ent);
 
     system.state.point_lights.deinit();
     system.state.ocean_tiles.deinit();
