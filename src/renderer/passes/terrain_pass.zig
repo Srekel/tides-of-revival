@@ -1,4 +1,3 @@
-
 const std = @import("std");
 
 const config = @import("../../config/config.zig");
@@ -292,13 +291,13 @@ pub const TerrainPass = struct {
         if (tides_math.dist3_xz(self.cam_pos_old, render_view.position) > 32) {
             const trazy_zone_2 = ztracy.ZoneNC(@src(), "refresh patches", 0x00_ff_ff_00);
             defer trazy_zone_2.End();
-            var lookups_old = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
-            var lookups_new = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024) catch unreachable;
+            var lookups_old = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024 * 16) catch unreachable;
+            var lookups_new = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 1024 * 16) catch unreachable;
             for (0..3) |lod| {
                 lookups_old.clearRetainingCapacity();
                 lookups_new.clearRetainingCapacity();
 
-                const area_width = 4 * config.patch_size * @as(f32, @floatFromInt(std.math.pow(usize, 2, lod)));
+                const area_width = 8 * config.patch_size * @as(f32, @floatFromInt(std.math.pow(usize, 2, lod)));
 
                 const area_old = world_patch_manager.RequestRectangle{
                     .x = self.cam_pos_old[0] - area_width,
@@ -566,7 +565,7 @@ pub const TerrainPass = struct {
 
     pub fn createDescriptorSets(self: *@This()) void {
         self.gbuffer_bindings.createDescriptorSets(false);
-        for (0..renderer.Renderer.cascades_max_count) | cascade_index| {
+        for (0..renderer.Renderer.cascades_max_count) |cascade_index| {
             self.shadows_bindings[cascade_index].createDescriptorSets(true);
         }
     }
