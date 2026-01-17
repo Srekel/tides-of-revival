@@ -385,7 +385,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 var cam_rot = environment_info.journey_camera.?.getMut(fd.Rotation).?;
                 var cam_rot_z = zm.quatFromMat(z_mat);
                 const down_z = zm.f32x4(0, -1, 0, 0);
-                cam_rot_z = zm.slerp(cam_rot_z, down_z, 0.5); 
+                cam_rot_z = zm.slerp(cam_rot_z, down_z, 0.5);
                 zm.storeArr4(cam_rot.elems(), cam_rot_z);
             },
             .transition_in => {
@@ -413,18 +413,17 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 z_start[1] += 5;
                 z_dest[1] += 5;
 
-                {
                 const percent = (environment_info.world_time - environment_info.journey_time_start.?) / (environment_info.journey_time_end.? - environment_info.journey_time_start.?);
                 z_cam_pos = zm.lerp(z_start, z_dest, easeInOutSine(@as(f32, @floatCast(percent))));
                 zm.storeArr3(cam_pos.elems(), z_cam_pos);
 
                 const ray_origin = [_]f32{
-                        z_cam_pos[0],
-                        z_cam_pos[1] + 100,
-                        z_cam_pos[2],
+                    z_cam_pos[0],
+                    z_cam_pos[1] + 100,
+                    z_cam_pos[2],
                     0,
                 };
-                    const ray_dir = [_]f32{ 0, -200, 0, 0 };
+                const ray_dir = [_]f32{ 0, -200, 0, 0 };
                 const ray = zphy.RRayCast{
                     .origin = ray_origin,
                     .direction = ray_dir,
@@ -781,26 +780,26 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                     vignette_settings.radius = 1;
 
                     // if (!has_nearby_light) {
-                        var campfire_ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.campfire);
-                        campfire_ent.set(fd.Position{
-                            .x = hit_pos[0],
-                            .y = hit_pos[1] - 0.1,
-                            .z = hit_pos[2],
-                        });
-                        campfire_ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
-                        campfire_ent.set(fd.Rotation{});
-                        campfire_ent.set(fd.Scale{});
-                        campfire_ent.set(fd.Transform{});
-                        campfire_ent.set(fd.Dynamic{});
-                        campfire_ent.set(fd.PointLight{
-                            .color = .{ .r = 1, .g = 0.8, .b = 0.2 },
-                            .range = 10.0,
-                            .intensity = 10.0,
-                        });
+                    var campfire_ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.campfire);
+                    campfire_ent.set(fd.Position{
+                        .x = hit_pos[0],
+                        .y = hit_pos[1] - 0.1,
+                        .z = hit_pos[2],
+                    });
+                    campfire_ent.set(fd.Forward{ .x = 0, .y = 0, .z = 1 });
+                    campfire_ent.set(fd.Rotation{});
+                    campfire_ent.set(fd.Scale{});
+                    campfire_ent.set(fd.Transform{});
+                    campfire_ent.set(fd.Dynamic{});
+                    campfire_ent.set(fd.PointLight{
+                        .color = .{ .r = 1, .g = 0.8, .b = 0.2 },
+                        .range = 10.0,
+                        .intensity = 10.0,
+                    });
 
-                        player_comp.fx_fire.start() catch unreachable;
-                        player_comp.fx_fire.setVolume(0);
-                        player_comp.fx_fire.setPosition(hit_pos);
+                    player_comp.fx_fire.start() catch unreachable;
+                    player_comp.fx_fire.setVolume(0);
+                    player_comp.fx_fire.setPosition(hit_pos);
                     // }
                 }
             },
