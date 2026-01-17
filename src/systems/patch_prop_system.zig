@@ -145,11 +145,11 @@ fn patchPropUpdateLoaders(it: *ecs.iter_t) callconv(.C) void {
         }
 
         const patch_type_id = system.world_patch_mgr.getPatchTypeId(IdLocal.init("props"));
-        var lookups_old = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 16 * 1024) catch unreachable;
-        var lookups_new = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 16 * 1024) catch unreachable;
+        var lookups_old = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 8 * 16 * 1024) catch unreachable;
+        var lookups_new = std.ArrayList(world_patch_manager.PatchLookup).initCapacity(arena, 8 * 16 * 1024) catch unreachable;
 
         const lod = 1;
-        const radius = 2 * 1024;
+        const radius = 4 * 1024;
         if (loader.pos_old) |pos_old| {
             const area_old = world_patch_manager.RequestRectangle{
                 .x = pos_old[0] - radius,
