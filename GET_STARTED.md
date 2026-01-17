@@ -41,10 +41,16 @@ Tides of Revival development is currently limited to Windows. You need the follo
 
 ## 3. Initialize
 
-- Run `full_pull -f`
-- At the step where `zig` is downloaded, make sure to extract the zip into where you have zig on your path.
-- This will first sync all of the project's repos and dependencies, then build the game world. 
-- Wait, it will take a while.
+- Run `sync_external.py`
+- This will first sync all of the project's repos and dependencies. 
+- Start Code from the root folder. It should open a workspace.
+- Build "build_simulator_release"
+- Run "Simulator_Release"
+- Maybe: After it starts, close it down, and then start it back up again.
+- Wait, it will take a while. Like, half an hour or so depending on your computer.
+- When it's done, go to the tools/binaries folder and start AssetCooker.
+- Wait.
+- Go back to Code. Run "Tides of Revival". 
 
 ## 4. Start the game!
 - You should be able to debug it from within VS Code.
