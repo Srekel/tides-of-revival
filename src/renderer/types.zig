@@ -82,7 +82,9 @@ pub const UpdateDesc = struct {
 
     // Entities
     ocean_tiles: *std.ArrayList(OceanTile) = undefined,
-    static_entities: *std.ArrayList(RenderableEntity) = undefined,
+    // static_entities: *std.ArrayList(RenderableEntity) = undefined,
+    added_static_entities: std.ArrayList(RenderableEntity) = undefined,
+    removed_static_entities: std.ArrayList(RenderableEntityId) = undefined,
     dynamic_entities: *std.ArrayList(DynamicEntity) = undefined,
     ui_images: *std.ArrayList(UiImage) = undefined,
 };
@@ -119,8 +121,9 @@ pub const OceanTile = struct {
     scale: f32 = 0,
 };
 
+pub const RenderableEntityId = u64;
 pub const RenderableEntity = struct {
-    entity_id: u64,
+    entity_id: RenderableEntityId,
     renderable_id: IdLocal,
     world: zm.Mat,
     // Debug

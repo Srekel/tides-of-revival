@@ -430,6 +430,12 @@ pub const PSOManager = struct {
         // =========================
         {
 
+            // Destroy Instances
+            {
+                var sampler_ids = [_]IdLocal{};
+                self.createComputePipeline(IdLocal.init("destroy_instances"), "destroy_instances.comp", &sampler_ids);
+            }
+
             // Culling: Clear UAV
             {
                 var sampler_ids = [_]IdLocal{};

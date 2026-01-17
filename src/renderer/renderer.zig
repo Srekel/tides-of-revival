@@ -99,7 +99,8 @@ pub const Renderer = struct {
     height_fog_settings: renderer_types.HeightFogSettings = undefined,
     ocean_tiles: std.ArrayList(renderer_types.OceanTile) = undefined,
     dynamic_entities: std.ArrayList(renderer_types.DynamicEntity) = undefined,
-    static_entitites: std.ArrayList(renderer_types.RenderableEntity) = undefined,
+    added_static_entities: std.ArrayList(renderer_types.RenderableEntity) = undefined,
+    removed_static_entities: std.ArrayList(renderer_types.RenderableEntityId) = undefined,
     ui_images: std.ArrayList(renderer_types.UiImage) = undefined,
 
     // GPU Bindless Buffers
@@ -109,10 +110,12 @@ pub const Renderer = struct {
     light_matrix_buffer: ElementBindlessBuffer = undefined,
     mesh_buffer: ElementBindlessBuffer = undefined,
     material_buffer: ElementBindlessBuffer = undefined,
+    renderable_buffer: ElementBindlessBuffer = undefined,
 
     // Resources
     // =========
     renderable_map: RenderableHashMap = undefined,
+    renderable_item_map: RenderableToRenderableItems = undefined,
     // TODO: Figure out if we need to store this data on the CPU
     meshes: std.ArrayList(Mesh) = undefined,
     mesh_map: MeshHashMap = undefined,
@@ -404,6 +407,7 @@ pub const Renderer = struct {
         _ = zgui.io.addFontFromFile("content/fonts/Roboto-Medium.ttf", 16.0);
 
         self.renderable_map = RenderableHashMap.init(allocator);
+        self.renderable_item_map = RenderableToRenderableItems.init(allocator);
 
         self.light_buffer.init(self, 2048, @sizeOf(renderer_types.GpuLight), false, "GpuLight Buffer");
         self.light_matrix_buffer.init(self, 4, @sizeOf([16]f32), false, "Light Matrix Buffer");
@@ -411,6 +415,7 @@ pub const Renderer = struct {
         self.meshes = std.ArrayList(Mesh).init(allocator);
         self.mesh_map = MeshHashMap.init(allocator);
         self.mesh_buffer.init(self, 1024, @sizeOf(GPUMesh), false, "GpuMesh Buffer");
+        self.renderable_buffer.init(self, 1024 * lods_per_renderable_max_count * materials_per_renderable_max_count, @sizeOf(GpuRenderableItem), false, "Gpu Renderable Items");
 
         self.material_buffer.init(self, 64, @sizeOf(GpuMaterial), false, "Material Buffer");
         self.material_map = MaterialMap.init(allocator);
@@ -473,14 +478,16 @@ pub const Renderer = struct {
         // Scene Data
         self.ocean_tiles = std.ArrayList(renderer_types.OceanTile).init(self.allocator);
         self.dynamic_entities = std.ArrayList(renderer_types.DynamicEntity).init(self.allocator);
-        self.static_entitites = std.ArrayList(renderer_types.RenderableEntity).init(self.allocator);
+        self.added_static_entities = std.ArrayList(renderer_types.RenderableEntity).init(self.allocator);
+        self.removed_static_entities = std.ArrayList(renderer_types.RenderableEntityId).init(self.allocator);
         self.ui_images = std.ArrayList(renderer_types.UiImage).init(self.allocator);
     }
 
     pub fn exit(self: *Renderer) void {
         // Scene Data
         self.ocean_tiles.deinit();
-        self.static_entitites.deinit();
+        self.added_static_entities.deinit();
+        self.removed_static_entities.deinit();
         self.dynamic_entities.deinit();
         self.ui_images.deinit();
 
@@ -515,6 +522,7 @@ pub const Renderer = struct {
         }
         self.texture_pool.deinit();
 
+        self.renderable_item_map.deinit();
         self.renderable_map.deinit();
         self.mesh_map.deinit();
         self.meshes.deinit();
@@ -757,8 +765,11 @@ pub const Renderer = struct {
         self.dynamic_entities.clearRetainingCapacity();
         self.dynamic_entities.appendSlice(update_desc.dynamic_entities.items) catch unreachable;
 
-        self.static_entitites.clearRetainingCapacity();
-        self.static_entitites.appendSlice(update_desc.static_entities.items) catch unreachable;
+        self.added_static_entities.clearRetainingCapacity();
+        self.removed_static_entities.clearRetainingCapacity();
+
+        self.added_static_entities.appendSlice(update_desc.added_static_entities.items) catch unreachable;
+        self.removed_static_entities.appendSlice(update_desc.removed_static_entities.items) catch unreachable;
 
         self.ui_images.clearRetainingCapacity();
         self.ui_images.appendSlice(update_desc.ui_images.items) catch unreachable;
@@ -772,8 +783,6 @@ pub const Renderer = struct {
         self.generateShadowViews();
 
         const render_view = self.generateRenderView();
-
-        self.updateStep(render_view);
 
         if ((self.swap_chain.*.bitfield_1.mEnableVsync == 1) != self.vsync_enabled) {
             graphics.waitQueueIdle(self.graphics_queue);
@@ -804,6 +813,8 @@ pub const Renderer = struct {
 
         var cmd_list = elem.cmds[0];
         graphics.beginCmd(cmd_list);
+
+        self.updateStep(render_view, cmd_list);
 
         self.gpu_frame_profile_index = self.startGpuProfile(cmd_list, "GPU Frame");
 
@@ -1253,12 +1264,12 @@ pub const Renderer = struct {
         self.frame_index = (self.frame_index + 1) % Renderer.data_buffer_count;
     }
 
-    fn updateStep(self: *Renderer, render_view: RenderView) void {
+    fn updateStep(self: *Renderer, render_view: RenderView, cmd_list: [*c]graphics.Cmd) void {
         const trazy_zone = ztracy.ZoneNC(@src(), "Update", 0x00_ff_ff_00);
         defer trazy_zone.End();
 
         self.terrain_pass.update(render_view);
-        self.static_geometry_pass.update();
+        self.static_geometry_pass.update(cmd_list);
         self.ui_pass.update();
     }
 
@@ -1527,13 +1538,20 @@ pub const Renderer = struct {
     }
 
     pub fn registerRenderable(self: *Renderer, id: IdLocal, desc: RenderableDesc) void {
+        var gpu_renderable_items = std.ArrayList(GpuRenderableItem).init(self.allocator);
+        defer gpu_renderable_items.deinit();
+
         var renderable: Renderable = undefined;
         renderable.lods_count = desc.lods_count;
+        renderable.gpu_instance_count = renderable.lods_count;
+
+        var first_mesh = true;
+        var renderable_bounds: geometry.BoundingBox = undefined;
 
         for (0..desc.lods_count) |lod_index| {
             const lod = &desc.lods[lod_index];
-            const mesh = self.mesh_map.get(lod.mesh_id.hash).?;
-            std.debug.assert(mesh.count == @as(u32, @intCast(lod.materials_count)));
+            const mesh_info = self.mesh_map.get(lod.mesh_id.hash).?;
+            std.debug.assert(mesh_info.count == @as(u32, @intCast(lod.materials_count)));
             renderable.lods[lod_index].mesh_id = lod.mesh_id;
             renderable.lods[lod_index].screen_percentage_range[0] = lod.screen_percentage_range[0];
             renderable.lods[lod_index].screen_percentage_range[1] = lod.screen_percentage_range[1];
@@ -1541,9 +1559,46 @@ pub const Renderer = struct {
             for (0..lod.materials_count) |material_index| {
                 renderable.lods[lod_index].materials[material_index] = lod.materials[material_index];
             }
+            renderable.gpu_instance_count += lod.materials_count;
+
+            for (0..mesh_info.count) |mesh_index_offset| {
+                const mesh = &self.meshes.items[mesh_info.index + mesh_index_offset];
+                const material_index = self.getMaterialIndex(renderable.lods[lod_index].materials[mesh_index_offset]);
+
+                var gpu_renderable_item: GpuRenderableItem = undefined;
+                gpu_renderable_item.local_bounds_origin = mesh.bounds.center;
+                gpu_renderable_item.local_bounds_extents = mesh.bounds.extents;
+                gpu_renderable_item.screen_percentage_min = lod.screen_percentage_range[0];
+                gpu_renderable_item.screen_percentage_max = lod.screen_percentage_range[1];
+                gpu_renderable_item.mesh_index = @intCast(mesh_info.index + mesh_index_offset);
+                gpu_renderable_item.material_index = @intCast(material_index);
+                gpu_renderable_item._pad = [2]u32{ 73, 73 };
+
+                gpu_renderable_items.append(gpu_renderable_item) catch unreachable;
+
+                if (first_mesh) {
+                    first_mesh = false;
+                    renderable_bounds = mesh.bounds;
+                } else {
+                    renderable_bounds = geometry.mergeBoundingBoxes(renderable_bounds, mesh.bounds);
+                }
+            }
         }
 
+        renderable.bounds_origin = renderable_bounds.center;
+        renderable.bounds_extents = renderable_bounds.extents;
+
         self.renderable_map.put(id.hash, renderable) catch unreachable;
+        self.renderable_item_map.put(id.hash, .{ .index = self.renderable_buffer.element_count, .count = @intCast(gpu_renderable_items.items.len) }) catch unreachable;
+
+        // Upload renderable items to the GPU
+        const data_slice = OpaqueSlice{
+            .data = @ptrCast(gpu_renderable_items.items),
+            .size = gpu_renderable_items.items.len * @sizeOf(GpuRenderableItem),
+        };
+        self.updateBuffer(data_slice, self.renderable_buffer.offset, GpuRenderableItem, self.renderable_buffer.buffer);
+        self.renderable_buffer.offset += data_slice.size;
+        self.renderable_buffer.element_count += @intCast(gpu_renderable_items.items.len);
     }
 
     pub fn getRenderable(self: *Renderer, id: IdLocal) Renderable {
@@ -2071,6 +2126,7 @@ pub const Renderer = struct {
 
         var update_desc = std.mem.zeroes(resource_loader.BufferUpdateDesc);
         update_desc.pBuffer = @ptrCast(buffer);
+        update_desc.mSize = data.size;
         update_desc.mDstOffset = dest_offset;
         resource_loader.beginUpdateResource(&update_desc);
         util.memcpy(update_desc.pMappedData.?, data.data.?, data.size, .{});
@@ -2562,9 +2618,24 @@ pub const RenderableLod = struct {
 const Renderable = struct {
     lods: [lods_per_renderable_max_count]RenderableLod,
     lods_count: u32,
+    gpu_instance_count: u32,
+    bounds_origin: [3]f32,
+    bounds_extents: [3]f32,
 };
 
 const RenderableHashMap = std.AutoHashMap(u64, Renderable);
+
+const GpuRenderableItem = struct {
+    local_bounds_origin: [3]f32,
+    screen_percentage_min: f32,
+    local_bounds_extents: [3]f32,
+    screen_percentage_max: f32,
+    mesh_index: u32,
+    material_index: u32,
+    _pad: [2]u32,
+};
+
+const RenderableToRenderableItems = std.AutoHashMap(u64, struct { index: usize, count: u32 });
 
 // ███╗   ███╗███████╗███████╗██╗  ██╗███████╗███████╗
 // ████╗ ████║██╔════╝██╔════╝██║  ██║██╔════╝██╔════╝

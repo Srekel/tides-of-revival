@@ -26,6 +26,7 @@ const resource_loader = zforge.resource_loader;
 pub const SystemCreateCtx = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
     arena_system_lifetime: std.mem.Allocator,
+    arena_system_update: std.mem.Allocator,
     heap_allocator: std.mem.Allocator,
     ecsu_world: ecsu.World,
     input_frame_data: *input.FrameData,
@@ -37,6 +38,7 @@ pub const SystemCreateCtx = struct {
 pub const SystemUpdateContext = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
     heap_allocator: std.mem.Allocator,
+    arena_system_update: std.mem.Allocator,
     ecsu_world: ecsu.World,
     input_frame_data: *input.FrameData,
     renderer: *renderer.Renderer,
@@ -50,13 +52,18 @@ pub const SystemUpdateContext = struct {
         ocean_tiles: std.ArrayList(renderer_types.OceanTile),
 
         query_static_entities: *ecs.query_t,
-        static_entities: std.ArrayList(renderer_types.RenderableEntity),
+        // static_entities: std.ArrayList(renderer_types.RenderableEntity),
 
         query_dynamic_entities: *ecs.query_t,
         dynamic_entities: std.ArrayList(renderer_types.DynamicEntity),
 
         query_ui_images: *ecs.query_t,
         ui_images: std.ArrayList(renderer_types.UiImage),
+
+        query_scripts: *ecs.query_t,
+
+        added_static_entities: std.ArrayList(renderer_types.RenderableEntity) = undefined,
+        removed_static_entities: std.ArrayList(renderer_types.RenderableEntityId) = undefined,
     },
 };
 
@@ -105,21 +112,52 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 1),
     }) catch unreachable;
 
+    const query_scripts = ecs.query_init(ecsu_world.world, &.{
+        .entity = ecs.new_entity(ecsu_world.world, "query_scripts"),
+        .terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.MadeByAScript), .inout = .InOut },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 1),
+    }) catch unreachable;
+
     const update_ctx = create_ctx.arena_system_lifetime.create(SystemUpdateContext) catch unreachable;
     update_ctx.* = SystemUpdateContext.view(create_ctx);
     update_ctx.*.state = .{
         .render_imgui = false,
         .query_point_lights = query_point_lights,
+        .query_scripts = query_scripts,
         .point_lights = std.ArrayList(renderer_types.PointLight).init(pass_allocator),
         .query_ocean_tiles = query_ocean_tiles,
         .ocean_tiles = std.ArrayList(renderer_types.OceanTile).init(pass_allocator),
         .query_static_entities = query_static_entities,
-        .static_entities = std.ArrayList(renderer_types.RenderableEntity).init(pass_allocator),
+        // .static_entities = std.ArrayList(renderer_types.RenderableEntity).init(pass_allocator),
         .query_dynamic_entities = query_dynamic_entities,
         .dynamic_entities = std.ArrayList(renderer_types.DynamicEntity).init(pass_allocator),
         .query_ui_images = query_ui_images,
         .ui_images = std.ArrayList(renderer_types.UiImage).init(pass_allocator),
+        .added_static_entities = std.ArrayList(renderer_types.RenderableEntity).init(pass_allocator),
+        .removed_static_entities = std.ArrayList(renderer_types.RenderableEntityId).init(pass_allocator),
     };
+
+    // Create observer that is invoked whenever Position is set
+    const observer_desc: ecs.observer_desc_t = .{
+        .query = .{
+            .terms = [_]ecs.term_t{
+                .{ .id = ecs.id(fd.Renderable), .inout = .In },
+                .{ .id = ecs.id(fd.Transform), .inout = .In },
+                // .{ .id = ecs.id(fd.LolTest), .inout = .In },
+            } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2),
+        },
+        .events = [_]ecs.entity_t{ ecs.OnSet, ecs.OnRemove, 0, 0, 0, 0, 0, 0 },
+        .callback = onMonitorRenderable,
+        .ctx = update_ctx,
+    };
+    _ = ecs.observer_init(ecsu_world.world, &observer_desc);
+
+    // Alternatively this macro shortcut can be used:
+    // ECS_OBSERVER(world, OnSetPosition, EcsOnSet, Position);
+
+    // const observer_ent = ecs.new_entity(world);
+    // ecs.set(world, observer_ent, fd.Renderable, {10, 20}); // Invokes observer
 
     {
         var system_desc = ecs.system_desc_t{};
@@ -152,7 +190,7 @@ pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
 
     system.state.point_lights.deinit();
     system.state.ocean_tiles.deinit();
-    system.state.static_entities.deinit();
+    // system.state.static_entities.deinit();
 }
 
 // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
@@ -323,30 +361,38 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
         update_desc.ocean_tiles = &system.state.ocean_tiles;
     }
 
-    // Find all static entities
-    {
-        system.state.static_entities.clearRetainingCapacity();
+    var query_scripts_iter = ecs.query_iter(system.ecsu_world.world, system.state.query_scripts);
+    while (ecs.query_next(&query_scripts_iter)) {
+        // std.log.info("lol {}", .{it.count()});
+        for (query_scripts_iter.entities()) |ent| {
+            const ent2 = ecsu.Entity.init(system.ecsu_world.world, ent);
+            ent2.remove(fd.MadeByAScript); // only run once per script entity
 
-        var iter = ecs.query_iter(system.ecsu_world.world, system.state.query_static_entities);
-        while (ecs.query_next(&iter)) {
-            const renderables = ecs.field(&iter, fd.Renderable, 0).?;
-            const transforms = ecs.field(&iter, fd.Transform, 1).?;
+            const scale = ent2.get(fd.Scale).?;
+            const rot = ent2.get(fd.Rotation).?;
+            const pos = ent2.get(fd.Position).?;
+            const z_scale_matrix = zm.scaling(scale.x, scale.y, scale.z);
+            const z_rot_matrix = zm.matFromQuat(rot.asZM());
+            const z_translate_matrix = zm.translation(pos.x, pos.y, pos.z);
+            const z_sr_matrix = zm.mul(z_scale_matrix, z_rot_matrix);
+            const z_srt_matrix = zm.mul(z_sr_matrix, z_translate_matrix);
 
-            for (renderables, transforms, 0..) |renderable, transform, entity_index| {
-                var world: [16]f32 = undefined;
-                storeMat44(transform.matrix[0..], world[0..]);
+            const z_world_matrix = z_srt_matrix;
 
-                system.state.static_entities.append(.{
-                    .entity_id = iter.entities()[entity_index],
-                    .renderable_id = renderable.id,
-                    .world = zm.loadMat(&world),
-                    .draw_bounds = renderable.draw_bounds,
-                }) catch unreachable;
-            }
+            var transform: fd.Transform = undefined;
+            zm.storeMat43(&transform.matrix, z_world_matrix);
+
+            ent2.set(transform);
         }
-
-        update_desc.static_entities = &system.state.static_entities;
     }
+
+    // Find all static entity changes
+    update_desc.added_static_entities = std.ArrayList(renderer_types.RenderableEntity).initCapacity(system.arena_system_update, system.state.added_static_entities.items.len) catch unreachable;
+    update_desc.removed_static_entities = std.ArrayList(renderer_types.RenderableEntityId).initCapacity(system.arena_system_update, system.state.removed_static_entities.items.len) catch unreachable;
+    update_desc.added_static_entities.appendSliceAssumeCapacity(system.state.added_static_entities.items);
+    update_desc.removed_static_entities.appendSliceAssumeCapacity(system.state.removed_static_entities.items);
+    system.state.added_static_entities.clearRetainingCapacity();
+    system.state.removed_static_entities.clearRetainingCapacity();
 
     // Find all dynamic entities
     {
@@ -438,4 +484,37 @@ inline fn storeMat44(mat43: *const [12]f32, mat44: *[16]f32) void {
     mat44[13] = mat43[10];
     mat44[14] = mat43[11];
     mat44[15] = 1;
+}
+
+//  ██████╗ ██████╗ ███████╗███████╗██████╗ ██╗   ██╗███████╗██████╗
+// ██╔═══██╗██╔══██╗██╔════╝██╔════╝██╔══██╗██║   ██║██╔════╝██╔══██╗
+// ██║   ██║██████╔╝███████╗█████╗  ██████╔╝██║   ██║█████╗  ██████╔╝
+// ██║   ██║██╔══██╗╚════██║██╔══╝  ██╔══██╗╚██╗ ██╔╝██╔══╝  ██╔══██╗
+// ╚██████╔╝██████╔╝███████║███████╗██║  ██║ ╚████╔╝ ███████╗██║  ██║
+//  ╚═════╝ ╚═════╝ ╚══════╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝
+
+// Observer callback
+fn onMonitorRenderable(it: *ecs.iter_t) callconv(.C) void {
+    const ctx: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
+
+    const renderables = ecs.field(it, fd.Renderable, 0).?;
+    const transforms = ecs.field(it, fd.Transform, 1).?;
+    if (it.event == ecs.OnSet) {
+        for (renderables, transforms, it.entities()) |renderable, transform, entity| {
+            var world: [16]f32 = undefined;
+            storeMat44(transform.matrix[0..], world[0..]);
+
+            const renderable_entity: renderer_types.RenderableEntity = .{
+                .entity_id = entity,
+                .renderable_id = renderable.id,
+                .world = zm.loadMat(&world),
+                .draw_bounds = renderable.draw_bounds,
+            };
+            ctx.state.added_static_entities.append(renderable_entity) catch unreachable;
+        }
+    } else if (it.event == ecs.OnRemove) {
+        for (it.entities()) |entity| {
+            ctx.state.removed_static_entities.append(entity) catch unreachable;
+        }
+    }
 }

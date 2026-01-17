@@ -141,7 +141,6 @@ pub fn run() void {
         });
     }
 
-
     // ███████╗██╗   ██╗███████╗████████╗███████╗███╗   ███╗███████╗
     // ██╔════╝╚██╗ ██╔╝██╔════╝╚══██╔══╝██╔════╝████╗ ████║██╔════╝
     // ███████╗ ╚████╔╝ ███████╗   ██║   █████╗  ██╔████╔██║███████╗
@@ -197,6 +196,12 @@ pub fn run() void {
             .{ .name = "z", .type = ecs.FLECS_IDecs_f32_tID_ },
             .{ .name = "w", .type = ecs.FLECS_IDecs_f32_tID_ },
         } ++ ecs.array(ecs.member_t, 32 - 4)),
+    });
+    _ = ecs.struct_init(ecsu_world.world, .{
+        .entity = ecs.id(fd.MadeByAScript), // Make sure to use existing id
+        .members = ([_]ecs.member_t{
+            .{ .name = "dummy", .type = ecs.FLECS_IDecs_u8_tID_ },
+        } ++ ecs.array(ecs.member_t, 32 - 1)),
     });
 
     var task_queue1: task_queue.TaskQueue = undefined;
@@ -386,6 +391,9 @@ pub fn run() void {
     //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
     while (true) {
+        _ = arena_frame.reset(.retain_capacity);
+        _ = arena_system_update.reset(.retain_capacity);
+
         // NOTE: There's no valuable distinction between update_full and update,
         // but probably not worth looking into deeper until we get a job system.
         const done = update_full(gameloop_context);

@@ -285,7 +285,7 @@ pub const WorldPatchManager = struct {
             .patch_types = std.ArrayList(PatchType).initCapacity(allocator, max_patch_types) catch unreachable,
             .handle_map_by_lookup = std.AutoHashMap(PatchLookup, PatchHandle).init(allocator),
             .patch_pool = PatchPool.initCapacity(allocator, 512) catch unreachable, // temporarily low for testing
-            .bucket_queue = PatchQueue.create(allocator, [_]u32{ 8192, 8192, 8192, 8192 }), // temporarily low for testing
+            .bucket_queue = PatchQueue.create(allocator, [_]u32{ 16 * 8192, 16 * 8192, 16 * 8192, 16 * 8192 }), // temporarily low for testing
             .asset_mgr = asset_mgr,
             .debug_server = debug_server.DebugServer.create(1234, allocator),
         };

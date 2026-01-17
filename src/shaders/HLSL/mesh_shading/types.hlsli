@@ -15,7 +15,7 @@ struct Frame
     float cameraNearPlane;
     float cameraFarPlane;
     float time;
-    float _pad0;
+    uint renderableBufferIndex;
 
     // Default samplers
     // TODO: Add more default samplers
@@ -71,20 +71,31 @@ struct MeshletBounds
 struct MeshletCandidate
 {
     uint instanceId;
+    uint meshIndex;
+    uint materialIndex;
     uint meshletIndex;
 };
 
 struct Instance
 {
     float4x4 world;
+    float3 boundsOrigin;
+    uint renderableItemIndex;
+    float3 boundsExtents;
+    uint renderableItemCount;
+    uint flags;
+    uint3 _pad;
+};
+
+struct RenderableItem
+{
     float3 localBoundsOrigin;
     float screenPercentageMin;
     float3 localBoundsExtents;
     float screenPercentageMax;
-    uint id;
     uint meshIndex;
     uint materialIndex;
-    uint flags;
+    uint2 _pad;
 };
 
 #endif // _MESH_SHADING_TYPES_HLSLI_

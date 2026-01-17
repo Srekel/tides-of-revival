@@ -30,9 +30,7 @@ uint GetBin(uint meshletIndex)
 {
     ByteAddressBuffer visibleMeshletBuffer = ResourceDescriptorHeap[g_BinningParams.visibleMeshletsBufferIndex];
     MeshletCandidate candidate = visibleMeshletBuffer.Load<MeshletCandidate>(meshletIndex * sizeof(MeshletCandidate));
-
-    Instance instance = getInstance(candidate.instanceId);
-    MaterialData material = getMaterial(instance.materialIndex);
+    MaterialData material = getMaterial(candidate.materialIndex);
     return material.rasterizerBin;
 }
 

@@ -165,3 +165,17 @@ pub fn loadMesh(load_desc: *MeshLoadDesc) void {
         load_desc.mesh_data.append(mesh_data) catch unreachable;
     }
 }
+
+pub fn mergeBoundingBoxes(a: BoundingBox, b: BoundingBox) BoundingBox {
+    const a_min = [3]f32{ a.center[0] - a.extents[0], a.center[1] - a.extents[1], a.center[2] - a.extents[2] };
+    const a_max = [3]f32{ a.center[0] + a.extents[0], a.center[1] + a.extents[1], a.center[2] + a.extents[2] };
+    const b_min = [3]f32{ b.center[0] - b.extents[0], b.center[1] - b.extents[1], b.center[2] - b.extents[2] };
+    const b_max = [3]f32{ b.center[0] + b.extents[0], b.center[1] + b.extents[1], b.center[2] + b.extents[2] };
+
+    var result: BoundingBox = undefined;
+    const result_min = [3]f32{ @min(a_min[0], b_min[0]), @min(a_min[1], b_min[1]), @min(a_min[2], b_min[2]) };
+    const result_max = [3]f32{ @max(a_max[0], b_max[0]), @max(a_max[1], b_max[1]), @max(a_max[2], b_max[2]) };
+    result.extents = [3]f32{ (result_max[0] - result_min[0]) * 0.5, (result_max[1] - result_min[1]) * 0.5, (result_max[2] - result_min[2]) * 0.5 };
+    result.center = [3]f32{ (result_min[0] + result_max[0]) * 0.5, (result_min[1] + result_max[1]) * 0.5, (result_min[2] + result_max[2]) * 0.5 };
+    return result;
+}

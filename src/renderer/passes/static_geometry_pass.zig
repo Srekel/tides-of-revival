@@ -33,19 +33,31 @@ const GpuInstanceFlags = packed struct(u32) {
 
 const GpuInstance = struct {
     world: [16]f32,
-    local_bounds_origin: [3]f32,
-    screen_percentage_min: f32,
-    local_bounds_extents: [3]f32,
-    screen_percentage_max: f32,
-    id: u32,
-    mesh_index: u32,
-    material_index: u32,
+    bounds_origin: [3]f32,
+    renderable_item_id: u32,
+    bounds_extents: [3]f32,
+    renderable_item_count: u32,
     flags: GpuInstanceFlags,
+    _pad: [3]u32,
 };
 
 const GpuMeshletCandidate = struct {
     instance_id: u32,
+    mesh_index: u32,
+    material_index: u32,
     meshlet_index: u32,
+};
+
+const GpuInstanceRange = struct {
+    index: u32,
+    count: u32,
+};
+
+const DestroyInstancesParams = struct {
+    instances_buffer_index: u32,
+    instances_to_destroy_buffer_index: u32,
+    instances_to_destroy_count: u32,
+    _padding: u32,
 };
 
 const Frame = struct {
@@ -58,7 +70,7 @@ const Frame = struct {
     camera_near_plane: f32,
     camera_far_plane: f32,
     time: f32,
-    _padding0: f32,
+    renderable_buffer_index: u32,
     linear_repeat_sampler_index: u32,
     linear_clamp_sampler_index: u32,
     shadow_sampler_index: u32,
@@ -122,10 +134,16 @@ pub const StaticGeometryPass = struct {
     render_settings: RenderSettings,
 
     instances: std.ArrayList(GpuInstance),
+    free_ranges: std.ArrayList(GpuInstanceRange),
+    instances_to_destroy: std.ArrayList(GpuInstanceRange),
     entity_map: EntityMap,
 
     // Global Buffers
     instance_buffer: renderer.ElementBindlessBuffer,
+    // Destroy Instance Buffers
+    instance_to_destroy_buffer: renderer.ElementBindlessBuffer,
+    destroy_instances_uniform_buffers: [frames_count]BufferHandle,
+    destroy_instances_descriptor_set: [*c]DescriptorSet,
     // Meshlet Culling Buffers
     candidate_meshlets_counters_buffers: BufferHandle,
     candidate_meshlets_buffers: BufferHandle,
@@ -176,68 +194,221 @@ pub const StaticGeometryPass = struct {
             }
         }
 
+        // Destroy Instances GPU resources Data
+        {
+            // GPU Buffer
+            self.instance_to_destroy_buffer.init(rctx, 8169, @sizeOf(GpuInstanceRange), false, "GPU Instances to Destroy");
+
+            // Uniform Buffers
+            self.destroy_instances_uniform_buffers = blk: {
+                var buffers: [frames_count]renderer.BufferHandle = undefined;
+                for (buffers, 0..) |_, buffer_index| {
+                    buffers[buffer_index] = rctx.createUniformBuffer(DestroyInstancesParams);
+                }
+
+                break :blk buffers;
+            };
+        }
+
         self.instances = std.ArrayList(GpuInstance).init(self.allocator);
+        self.free_ranges = std.ArrayList(GpuInstanceRange).init(self.allocator);
+        self.instances_to_destroy = std.ArrayList(GpuInstanceRange).init(self.allocator);
         self.entity_map = EntityMap.init(self.allocator);
     }
 
     pub fn destroy(self: *@This()) void {
+        self.free_ranges.deinit();
+        self.instances_to_destroy.deinit();
         self.instances.deinit();
         self.entity_map.deinit();
     }
 
-    pub fn update(self: *@This()) void {
-        self.instances.clearRetainingCapacity();
+    pub fn update(self: *@This(), cmd_list: [*c]graphics.Cmd) void {
+        self.instances_to_destroy.clearRetainingCapacity();
 
-        for (self.renderer.static_entitites.items) |static_entity| {
-            if (self.entity_map.contains(static_entity.entity_id)) {
-                continue;
+        for (self.renderer.removed_static_entities.items) |static_entity_id| {
+            if (self.entity_map.get(static_entity_id)) |entity_info| {
+                self.instances_to_destroy.append(.{ .index = @intCast(entity_info.index), .count = 1 }) catch unreachable;
+                _ = self.entity_map.remove(static_entity_id);
             }
-
-            const instance_buffer_index: usize = self.instance_buffer.element_count + self.instances.items.len;
-            var instances_count: u32 = 0;
-
-            const renderable_data = self.renderer.getRenderable(static_entity.renderable_id);
-            for (0..renderable_data.lods_count) |lod_index| {
-                const mesh_info = self.renderer.getMeshInfo(renderable_data.lods[lod_index].mesh_id);
-
-                for (0..mesh_info.count) |mesh_index_offset| {
-                    const mesh = &self.renderer.meshes.items[mesh_info.index + mesh_index_offset];
-
-                    const material_index = self.renderer.getMaterialIndex(renderable_data.lods[lod_index].materials[mesh_index_offset]);
-                    var gpu_instance = std.mem.zeroes(GpuInstance);
-                    zm.storeMat(&gpu_instance.world, zm.transpose(static_entity.world));
-                    gpu_instance.id = @intCast(self.instance_buffer.element_count + self.instances.items.len);
-                    gpu_instance.mesh_index = @intCast(mesh_info.index + mesh_index_offset);
-                    gpu_instance.material_index = @intCast(material_index);
-                    gpu_instance.local_bounds_origin = mesh.bounds.center;
-                    gpu_instance.local_bounds_extents = mesh.bounds.extents;
-                    gpu_instance.screen_percentage_min = renderable_data.lods[lod_index].screen_percentage_range[0];
-                    gpu_instance.screen_percentage_max = renderable_data.lods[lod_index].screen_percentage_range[1];
-                    gpu_instance.flags = std.mem.zeroes(GpuInstanceFlags);
-                    if (static_entity.draw_bounds) {
-                        gpu_instance.flags.draw_bounds = 1;
-                    }
-
-                    self.instances.append(gpu_instance) catch unreachable;
-                    instances_count += 1;
-                }
-            }
-
-            self.entity_map.put(static_entity.entity_id, .{ .index = instance_buffer_index, .count = instances_count }) catch unreachable;
         }
 
-        if (self.instances.items.len > 0) {
-            self.instance_buffer.element_count += @intCast(self.instances.items.len);
+        if (self.instances_to_destroy.items.len > 0) {
+            var compacted_list = std.ArrayList(GpuInstanceRange).init(self.allocator);
+            defer compacted_list.deinit();
 
-            const instance_data = OpaqueSlice{
-                .data = @ptrCast(self.instances.items),
-                .size = self.instances.items.len * @sizeOf(GpuInstance),
+            calculatePrefixSum(&self.instances_to_destroy, &compacted_list);
+
+            const data = OpaqueSlice{
+                .data = @ptrCast(compacted_list.items),
+                .size = compacted_list.items.len * @sizeOf(GpuInstanceRange),
             };
 
-            std.debug.assert(self.instance_buffer.size > instance_data.size + self.instance_buffer.offset);
-            self.renderer.updateBuffer(instance_data, self.instance_buffer.offset, GpuInstance, self.instance_buffer.buffer);
-            self.instance_buffer.offset += instance_data.size;
+            std.debug.assert(self.instance_to_destroy_buffer.size > data.size);
+            self.renderer.updateBuffer(data, 0, GpuInstanceRange, self.instance_to_destroy_buffer.buffer);
+
+            const uniform_buffer_handle = self.destroy_instances_uniform_buffers[self.renderer.frame_index];
+
+            const destroy_instances_params = DestroyInstancesParams{
+                .instances_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffer.buffer),
+                .instances_to_destroy_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_to_destroy_buffer.buffer),
+                .instances_to_destroy_count = @intCast(compacted_list.items.len),
+                ._padding = 42,
+            };
+            const params_data = OpaqueSlice{
+                .data = @ptrCast(&destroy_instances_params),
+                .size = @sizeOf(DestroyInstancesParams),
+            };
+            self.renderer.updateBuffer(params_data, 0, DestroyInstancesParams, uniform_buffer_handle);
+
+            // Update Descriptor Set
+            {
+                var uniform_buffer = self.renderer.getBuffer(uniform_buffer_handle);
+
+                var params: [1]graphics.DescriptorData = undefined;
+                params[0] = std.mem.zeroes(graphics.DescriptorData);
+                params[0].pName = "g_DestroyParams";
+                params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
+
+                graphics.updateDescriptorSet(self.renderer.renderer, self.renderer.frame_index, self.destroy_instances_descriptor_set, @intCast(params.len), @ptrCast(&params));
+            }
+
+            const pipeline_id = ID("destroy_instances");
+            const pipeline = self.renderer.getPSO(pipeline_id);
+            graphics.cmdBindPipeline(cmd_list, pipeline);
+            graphics.cmdBindDescriptorSet(cmd_list, self.renderer.frame_index, self.destroy_instances_descriptor_set);
+            graphics.cmdDispatch(cmd_list, 1, 1, 1);
+
+            // Add the newly freed ranges to the free ranges list
+            compacted_list.appendSlice(self.free_ranges.items) catch unreachable;
+            self.free_ranges.clearRetainingCapacity();
+            calculatePrefixSum(&compacted_list, &self.free_ranges);
         }
+
+        if (self.renderer.added_static_entities.items.len > 0) {
+            self.instances.clearRetainingCapacity();
+
+            const total_static_entities = self.renderer.added_static_entities.items.len;
+            var processed_static_entities: usize = 0;
+            var filled_up_ranges: usize = 0;
+
+            for (self.free_ranges.items) |*free_range| {
+                const count = @min(free_range.count, total_static_entities - processed_static_entities);
+
+                for (0..count) |static_entity_index| {
+                    const static_entity = self.renderer.added_static_entities.items[processed_static_entities];
+                    processed_static_entities += 1;
+                    const gpu_instance = self.convertEntityToGpuInstance(static_entity);
+
+                    self.instances.append(gpu_instance) catch unreachable;
+                    self.entity_map.put(static_entity.entity_id, .{ .index = free_range.index + static_entity_index, .count = 1 }) catch unreachable;
+
+                    if (static_entity_index + 1 == free_range.count) {
+                        // We filled up this range, push it
+                        filled_up_ranges += 1;
+
+                        // Upload to the GPU
+                        {
+                            const instance_data = OpaqueSlice{
+                                .data = @ptrCast(self.instances.items.ptr),
+                                .size = self.instances.items.len * @sizeOf(GpuInstance),
+                            };
+
+                            self.renderer.updateBuffer(instance_data, free_range.index * @sizeOf(GpuInstance), GpuInstance, self.instance_buffer.buffer);
+                        }
+
+                        self.instances.clearRetainingCapacity();
+                        break;
+                    } else if (total_static_entities == processed_static_entities) {
+                        // We processed all of the entities
+                        // Upload to the GPU
+                        {
+                            const instance_data = OpaqueSlice{
+                                .data = @ptrCast(self.instances.items),
+                                .size = self.instances.items.len * @sizeOf(GpuInstance),
+                            };
+
+                            self.renderer.updateBuffer(instance_data, free_range.index * @sizeOf(GpuInstance), GpuInstance, self.instance_buffer.buffer);
+                        }
+
+                        self.instances.clearRetainingCapacity();
+                        break;
+                    }
+                }
+
+                free_range.count -= count;
+                free_range.index += count;
+            }
+
+            for (0..filled_up_ranges) |_| {
+                _ = self.free_ranges.orderedRemove(0);
+            }
+
+            if (processed_static_entities < total_static_entities) {
+                var instance_buffer_index = self.instance_buffer.element_count;
+                for (self.renderer.added_static_entities.items[processed_static_entities..]) |static_entity| {
+                    const gpu_instance = self.convertEntityToGpuInstance(static_entity);
+
+                    self.instances.append(gpu_instance) catch unreachable;
+                    self.entity_map.put(static_entity.entity_id, .{ .index = instance_buffer_index, .count = 1 }) catch unreachable;
+                    instance_buffer_index += 1;
+                }
+
+                self.instance_buffer.element_count += @intCast(self.instances.items.len);
+
+                const instance_data = OpaqueSlice{
+                    .data = @ptrCast(self.instances.items),
+                    .size = self.instances.items.len * @sizeOf(GpuInstance),
+                };
+
+                std.debug.assert(self.instance_buffer.size > instance_data.size + self.instance_buffer.offset);
+                self.renderer.updateBuffer(instance_data, self.instance_buffer.offset, GpuInstance, self.instance_buffer.buffer);
+                self.instance_buffer.offset += instance_data.size;
+            }
+        }
+    }
+
+    fn convertEntityToGpuInstance(self: *@This(), static_entity: renderer_types.RenderableEntity) GpuInstance {
+        const renderable_data = self.renderer.getRenderable(static_entity.renderable_id);
+
+        const renderable_item = self.renderer.renderable_item_map.get(static_entity.renderable_id.hash).?;
+
+        var gpu_instance = std.mem.zeroes(GpuInstance);
+        gpu_instance.renderable_item_id = @intCast(renderable_item.index);
+        gpu_instance.renderable_item_count = renderable_item.count;
+        zm.storeMat(&gpu_instance.world, zm.transpose(static_entity.world));
+        gpu_instance.bounds_origin = renderable_data.bounds_origin;
+        gpu_instance.bounds_extents = renderable_data.bounds_extents;
+        gpu_instance.flags = std.mem.zeroes(GpuInstanceFlags);
+        if (static_entity.draw_bounds) {
+            gpu_instance.flags.draw_bounds = 1;
+        }
+        gpu_instance._pad = [3]u32{ 73, 73, 73 };
+
+        return gpu_instance;
+    }
+
+    fn calculatePrefixSum(source: *std.ArrayList(GpuInstanceRange), destination: *std.ArrayList(GpuInstanceRange)) void {
+        // Sort by index
+        std.mem.sort(GpuInstanceRange, source.items, {}, gpuInstanceRangesSorter);
+
+        // Compact the instance ranges to destroy
+        var current_range = source.items[0];
+        for (1..source.items.len) |i| {
+            const instance_to_destroy = source.items[i];
+            if (current_range.index + current_range.count == instance_to_destroy.index) {
+                current_range.count += instance_to_destroy.count;
+            } else {
+                destination.append(current_range) catch unreachable;
+                current_range.index = instance_to_destroy.index;
+                current_range.count = instance_to_destroy.count;
+            }
+        }
+        destination.append(current_range) catch unreachable;
+    }
+
+    fn gpuInstanceRangesSorter(_: void, a: GpuInstanceRange, b: GpuInstanceRange) bool {
+        return a.index < b.index;
     }
 
     pub fn renderImGui(self: *@This()) void {
@@ -267,9 +438,7 @@ pub const StaticGeometryPass = struct {
     fn createWritableBindlessBuffer(self: *@This(), size: u64, debug_name: []const u8) renderer.BufferHandle {
         const buffer_creation_desc = renderer.BufferCreationDesc{
             .bindless = true,
-            .descriptors = .{
-                .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW.bits
-            },
+            .descriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW.bits },
             .start_state = .RESOURCE_STATE_COMMON,
             .size = size,
             .debug_name = debug_name,
@@ -300,7 +469,7 @@ pub const StaticGeometryPass = struct {
             frame.camera_near_plane = render_view.near_plane;
             frame.camera_far_plane = render_view.far_plane;
             frame.time = @floatCast(self.renderer.time);
-            frame._padding0 = 42;
+            frame.renderable_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.renderable_buffer.buffer);
             frame.instance_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffer.buffer);
             frame.material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.material_buffer.buffer);
             frame.meshes_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.mesh_buffer.buffer);
@@ -341,7 +510,7 @@ pub const StaticGeometryPass = struct {
             }
 
             frame_culling_uniform_data.time = @floatCast(self.renderer.time);
-            frame_culling_uniform_data._padding0 = 42;
+            frame_culling_uniform_data.renderable_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.renderable_buffer.buffer);
             frame_culling_uniform_data.instance_buffer_index = self.renderer.getBufferBindlessIndex(self.instance_buffer.buffer);
             frame_culling_uniform_data.material_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.material_buffer.buffer);
             frame_culling_uniform_data.meshes_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.mesh_buffer.buffer);
@@ -820,6 +989,15 @@ pub const StaticGeometryPass = struct {
         for (0..renderer.Renderer.cascades_max_count) |cascade_index| {
             self.shadows_bindings[cascade_index].createDescriptorSets(true);
         }
+
+        {
+            const root_signature = self.renderer.getRootSignature(IdLocal.init("destroy_instances"));
+            var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
+            desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
+            desc.mMaxSets = frames_count;
+            desc.pRootSignature = root_signature;
+            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.destroy_instances_descriptor_set));
+        }
     }
 
     pub fn prepareDescriptorSets(_: *@This()) void {}
@@ -830,6 +1008,8 @@ pub const StaticGeometryPass = struct {
         for (0..renderer.Renderer.cascades_max_count) |cascade_index| {
             self.shadows_bindings[cascade_index].unloadDescriptorSets();
         }
+
+        graphics.removeDescriptorSet(self.renderer.renderer, self.destroy_instances_descriptor_set);
     }
 };
 
