@@ -147,7 +147,7 @@ pub fn create(create_ctx: SystemCreateCtx) void {
                 // .{ .id = ecs.id(fd.LolTest), .inout = .In },
             } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2),
         },
-        .events = [_]ecs.entity_t{ ecs.OnSet, 0, 0, 0, 0, 0, 0, 0 },
+        .events = [_]ecs.entity_t{ ecs.OnSet, ecs.OnRemove, 0, 0, 0, 0, 0, 0 },
         .callback = onMonitorRenderable,
         .ctx = update_ctx,
     };

@@ -55,7 +55,7 @@ pub fn writeVillageScript(props: *std.ArrayList(Prop), name: []const u8, rand: *
             writeLine(writer, "    {s}_prop{d} : {s} {{", .{ name, prop_i, prop.name });
             writeLine(writer, "        config.flecs_data.Position: {{{d}, {d}, {d}}};", .{ pos[0], pos[1], pos[2] });
             writeLine(writer, "        config.flecs_data.Rotation: {{{d}, {d}, {d}, {d}}};", .{ rot[0], rot[1], rot[2], rot[3] });
-            writeLine(writer, "        config.flecs_data.Dynamic: {{}};", .{}); // hack temp
+            writeLine(writer, "        config.flecs_data.MadeByAScript: {{}};", .{}); // hack temp
             if (prop.scale) |scale| {
                 writeLine(writer, "        config.flecs_data.Scale: {{{d},{d},{d}}};", .{ scale[0], scale[1], scale[2] }); // hack temp
             }

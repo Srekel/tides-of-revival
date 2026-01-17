@@ -2126,6 +2126,7 @@ pub const Renderer = struct {
 
         var update_desc = std.mem.zeroes(resource_loader.BufferUpdateDesc);
         update_desc.pBuffer = @ptrCast(buffer);
+        update_desc.mSize = data.size;
         update_desc.mDstOffset = dest_offset;
         resource_loader.beginUpdateResource(&update_desc);
         util.memcpy(update_desc.pMappedData.?, data.data.?, data.size, .{});

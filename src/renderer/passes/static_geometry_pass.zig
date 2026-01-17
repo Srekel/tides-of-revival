@@ -233,8 +233,7 @@ pub const StaticGeometryPass = struct {
             }
         }
 
-        if (self.instances_to_destroy.items.len > 0)
-        {
+        if (self.instances_to_destroy.items.len > 0) {
             var compacted_list = std.ArrayList(GpuInstanceRange).init(self.allocator);
             defer compacted_list.deinit();
 
@@ -304,9 +303,24 @@ pub const StaticGeometryPass = struct {
                     self.instances.append(gpu_instance) catch unreachable;
                     self.entity_map.put(static_entity.entity_id, .{ .index = free_range.index + static_entity_index, .count = 1 }) catch unreachable;
 
-                    if (static_entity_index == free_range.count) {
+                    if (static_entity_index + 1 == free_range.count) {
+                        // We filled up this range, push it
                         filled_up_ranges += 1;
 
+                        // Upload to the GPU
+                        {
+                            const instance_data = OpaqueSlice{
+                                .data = @ptrCast(self.instances.items.ptr),
+                                .size = self.instances.items.len * @sizeOf(GpuInstance),
+                            };
+
+                            self.renderer.updateBuffer(instance_data, free_range.index * @sizeOf(GpuInstance), GpuInstance, self.instance_buffer.buffer);
+                        }
+
+                        self.instances.clearRetainingCapacity();
+                        break;
+                    } else if (total_static_entities == processed_static_entities) {
+                        // We processed all of the entities
                         // Upload to the GPU
                         {
                             const instance_data = OpaqueSlice{

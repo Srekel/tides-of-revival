@@ -158,6 +158,14 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     arm.g = lerp(1.0f, arm.g, fresnel);
     float reflectance = lerp(0.0f, 0.5f, fresnel);
 
+    // const float4 lod_to_color[4] = {
+    //     float4(0,1,0,1),
+    //     float4(0,0,1,1),
+    //     float4(1,1,0,1),
+    //     float4(1,0,0,1),
+    // };
+    // Out.GBuffer0 = float4(albedo, 1.0f) * lod_to_color[instance.lod];
+
     Out.GBuffer0 = float4(albedo, 1.0f);
     Out.GBuffer1 = float4(N, 1.0f);
     Out.GBuffer2 = float4(arm, reflectance);
