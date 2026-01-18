@@ -45,22 +45,26 @@ pub const brazier_1_id = ID("brazier_1_id");
 pub const brazier_2_id = ID("brazier_2_id");
 pub const campfire_id = ID("campfire_id");
 pub const stacked_stones_id = ID("stacked_stones");
+pub const lamp_id = ID("lamp_id");
+pub const lamppost_id = ID("lamppost_id");
 
-// pub const prefabs = [_]IdLocal{
-//     arrow_id,
-//     bow_id,
-//     brazier_1_id,
-//     brazier_2_id,
-//     giant_ant_id,
-//     house_3x5_id,
-//     palisade_400x300_a_id,
-//     palisade_400x300_b_id,
-//     palisade_sloped_400x300_a_id,
-//     palisade_sloped_400x300_b_id,
-//     slime_id,
-//     slime_trail_id,
-//     stacked_stones_id,
-// };
+pub const prefabs = [_]IdLocal{
+    arrow_id,
+    bow_id,
+    brazier_1_id,
+    brazier_2_id,
+    giant_ant_id,
+    house_3x5_id,
+    palisade_400x300_a_id,
+    palisade_400x300_b_id,
+    palisade_sloped_400x300_a_id,
+    palisade_sloped_400x300_b_id,
+    slime_id,
+    slime_trail_id,
+    stacked_stones_id,
+    lamppost_id,
+    lamp_id,
+};
 
 // TODO(gmodarelli): We need an Asset Database to store meshes, textures, materials and prefabs instead of managing them all through prefabs
 pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World) void {
@@ -249,11 +253,19 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         }
     }
 
-    const slime_material_id = ID("slime");
-    var slime_material = renderer.UberShaderMaterialData.initNoTexture(fd.ColorRGB.init(0.1, 0.6, 0.2), 0.3, 0.0);
-    slime_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
-    slime_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
-    prefab_mgr.rctx.loadMaterial(slime_material_id, slime_material) catch unreachable;
+    const slime_body_material_id = ID("slime_body");
+    var slime_body_material = renderer.UberShaderMaterialData.initNoTexture(fd.ColorRGB.init(1.0, 1.0, 1.0), 0.3, 0.0);
+    slime_body_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
+    slime_body_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
+    slime_body_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/creatures/slime/slime_body_albedo.dds");
+    prefab_mgr.rctx.loadMaterial(slime_body_material_id, slime_body_material) catch unreachable;
+
+    const slime_eyes_material_id = ID("slime_eyes");
+    var slime_eyes_material = renderer.UberShaderMaterialData.initNoTexture(fd.ColorRGB.init(1.0, 1.0, 1.0), 0.3, 0.0);
+    slime_eyes_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
+    slime_eyes_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
+    slime_eyes_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/creatures/slime/slime_eyes_albedo.dds");
+    prefab_mgr.rctx.loadMaterial(slime_eyes_material_id, slime_eyes_material) catch unreachable;
 
     {
         slime = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/creatures/slime/slime", slime_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
@@ -262,8 +274,9 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         const lod_group_component = slime.getMut(fd.LodGroup);
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
-                std.debug.assert(lod_group.lods[i].materials_count == 1);
-                lod_group.lods[i].materials[0] = slime_material_id;
+                std.debug.assert(lod_group.lods[i].materials_count == 2);
+                lod_group.lods[i].materials[0] = slime_body_material_id;
+                lod_group.lods[i].materials[1] = slime_eyes_material_id;
             }
         }
     }
@@ -276,7 +289,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials_count == 1);
-                lod_group.lods[i].materials[0] = slime_material_id;
+                lod_group.lods[i].materials[0] = slime_body_material_id;
             }
         }
     }
@@ -430,8 +443,9 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         var stacked_stone_material = renderer.UberShaderMaterialData.init();
         stacked_stone_material.gbuffer_pipeline_id = pso_meshlet_opaque_gbuffer_id;
         stacked_stone_material.shadow_caster_pipeline_id = null;
-        stacked_stone_material.base_color = fd.ColorRGB.init(0.3, 0.3, 0.3);
+        stacked_stone_material.base_color = fd.ColorRGB.init(1.0, 1.0, 1.0);
         stacked_stone_material.roughness = 0.8;
+        stacked_stone_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/props/roads/rock_blocky_albedo.dds");
         prefab_mgr.rctx.loadMaterial(stacked_stone_material_id, stacked_stone_material) catch unreachable;
 
         var renderable_desc = renderer.RenderableDesc{
@@ -469,6 +483,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
     const wood_trim_material_id = ID("house_wood_trim");
     const metal_ornaments_material_id = ID("house_metal_ornaments");
+    const plaster_material_id = ID("house_plaster");
 
     {
         var wood_trim_material = renderer.UberShaderMaterialData.init();
@@ -485,7 +500,6 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         plaster_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_Plaster_BaseColor.dds");
         plaster_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_Plaster_ORM.dds");
         plaster_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_Plaster_Normal.dds");
-        const plaster_material_id = ID("house_plaster");
         prefab_mgr.rctx.loadMaterial(plaster_material_id, plaster_material) catch unreachable;
 
         var brick_material = renderer.UberShaderMaterialData.init();
@@ -781,6 +795,69 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
             .range = 10,
             .intensity = 5,
         });
+    }
+
+    {
+        prefab_mgr.rctx.loadMesh("content/prefabs/props/lamppost/lamppost.mesh", lamppost_id) catch unreachable;
+
+        {
+            var renderable_desc = renderer.RenderableDesc{
+                .lods_count = 1,
+                .lods = undefined,
+            };
+            renderable_desc.lods[0].mesh_id = lamppost_id;
+            renderable_desc.lods[0].materials_count = 2;
+            renderable_desc.lods[0].materials[0] = wood_trim_material_id;
+            renderable_desc.lods[0].materials[1] = metal_ornaments_material_id;
+            // renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
+            // renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
+            renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
+            renderable_desc.lods[0].screen_percentage_range[1] = 30000.0;
+            prefab_mgr.rctx.registerRenderable(lamppost_id, renderable_desc);
+        }
+
+        const lamppost = prefab_mgr.createRenderablePrefab(lamppost_id, ecsu_world);
+        var renderable = lamppost.getMut(fd.Renderable).?;
+        renderable.id = lamppost_id;
+        renderable.draw_bounds = false;
+
+        prefab_mgr.rctx.loadMesh("content/prefabs/props/lamppost/lamp.mesh", lamp_id) catch unreachable;
+
+        {
+            var renderable_desc = renderer.RenderableDesc{
+                .lods_count = 1,
+                .lods = undefined,
+            };
+            renderable_desc.lods[0].mesh_id = lamp_id;
+            renderable_desc.lods[0].materials_count = 2;
+            renderable_desc.lods[0].materials[0] = plaster_material_id;
+            renderable_desc.lods[0].materials[1] = metal_ornaments_material_id;
+            // renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
+            // renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
+            renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
+            renderable_desc.lods[0].screen_percentage_range[1] = 30000.0;
+            prefab_mgr.rctx.registerRenderable(lamp_id, renderable_desc);
+        }
+
+        const lamp = prefab_mgr.createRenderablePrefab(lamp_id, ecsu_world);
+        renderable = lamp.getMut(fd.Renderable).?;
+        renderable.id = lamp_id;
+        renderable.draw_bounds = false;
+
+        // // TEMP: Lantern light
+        // const light_ent = ecsu_world.newEntity();
+        // light_ent.childOf(entity);
+        // light_ent.set(fd.Position{ .x = 0, .y = 2, .z = 0 });
+        // light_ent.set(fd.Rotation{});
+        // light_ent.set(fd.Scale.createScalar(1));
+        // light_ent.set(fd.Transform{});
+        // light_ent.set(fd.Dynamic{});
+
+        // light_ent.set(fd.PointLight{
+        //     .color = .{ .r = 1.0, .g = 0.8, .b = 0.6 },
+        //     .range = 10,
+        //     .intensity = 5,
+        // });
     }
 
 }

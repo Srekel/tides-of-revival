@@ -251,39 +251,32 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     //     ent.set(fd.Transform.initWithScale(position.x, position.y, position.z, 1.0));
     // }
 
-    // {
-    //     const plane_prefab = prefab_mgr.getPrefab(config.prefab.plane_id).?;
-    //     const position = fd.Position.init(50.0, 10.0, -50.0);
-    //     var ent = prefab_mgr.instantiatePrefab(ecsu_world, plane_prefab);
-    //     ent.set(position);
-    //     ent.set(fd.Rotation{});
-    //     ent.set(fd.Scale.createScalar(100.0));
-    //     ent.set(fd.Transform.initWithScale(position.x, position.y, position.z, 100.0));
-    // }
+    {
+        const plane_prefab = prefab_mgr.getPrefab(config.prefab.plane_id).?;
+        const position = fd.Position.init(50.0, 10.0, -50.0);
+        var ent = prefab_mgr.instantiatePrefab(ecsu_world, plane_prefab);
+        ent.set(position);
+        ent.set(fd.Rotation{});
+        ent.set(fd.Scale.createScalar(100.0));
+        ent.set(fd.Transform.initWithScale(position.x, position.y, position.z, 100.0));
+    }
 
-    // var position_x: f32 = 10.0;
-    // for (prefab.prefabs) |prefab_id| {
-    //     const prefab_ent = prefab_mgr.getPrefab(prefab_id).?;
-    //     const lod_group = prefab_ent.get(fd.LodGroup);
-    //     const mesh_handle = lod_group.?.lods[0].mesh_handle;
-    //     const mesh = rctx.getLegacyMesh(mesh_handle);
-    //     const aabbMin = mesh.geometry.*.mAabbMin;
-    //     const aabbMax = mesh.geometry.*.mAabbMax;
-    //     _ = aabbMax;
-    //     const radius = mesh.geometry.*.mRadius;
-    //     // const extent = (aabbMax[0] - aabbMin[0]);
+    var position_x: f32 = 10.0;
+    const radius: f32 = 3.0;
+    for (prefab.prefabs) |prefab_id| {
+        const prefab_ent = prefab_mgr.getPrefab(prefab_id).?;
 
-    //     position_x += radius + 1.0;
+        position_x += radius + 1.0;
 
-    //     const position = fd.Position.init(position_x, 10.0 - aabbMin[1], -20.0);
-    //     var ent = prefab_mgr.instantiatePrefab(ecsu_world, prefab_ent);
-    //     ent.set(position);
-    //     ent.set(fd.Rotation{});
-    //     ent.set(fd.Scale.createScalar(1.0));
-    //     ent.set(fd.Transform.initFromPosition(position));
+        const position = fd.Position.init(position_x, 10.0, -20.0);
+        var ent = prefab_mgr.instantiatePrefab(ecsu_world, prefab_ent);
+        ent.set(position);
+        ent.set(fd.Rotation{});
+        ent.set(fd.Scale.createScalar(1.0));
+        ent.set(fd.Transform.initFromPosition(position));
 
-    //     position_x += radius + 1.0;
-    // }
+        position_x += radius + 1.0;
+    }
 
     var environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     environment_info.active_camera = player_camera_ent;
