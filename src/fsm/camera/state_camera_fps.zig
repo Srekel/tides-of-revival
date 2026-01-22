@@ -224,10 +224,11 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 }
 
                 const body_hit = body_hit_opt.?;
-                const hit_pos = ray.getPointOnRay(result.hit.fraction);
-                const hit_normal = body_hit.getWorldSpaceSurfaceNormal(result.hit.sub_shape_id, hit_pos);
+                var hit_pos = ray.getPointOnRay(result.hit.fraction);
+                var hit_normal = body_hit.getWorldSpaceSurfaceNormal(result.hit.sub_shape_id, hit_pos);
 
                 var color = im3d.Im3d.Color.init5b(1, 1, 1, 1);
+                const color_red = im3d.Im3d.Color.init5b(1, 0, 0, 1);
                 // defer im3d.Im3d.DrawLine(
                 //     &.{
                 //         .x = hit_pos[0],
@@ -243,7 +244,102 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 //     color,
                 // );
 
-                const height_next = ray_origin[1] + ray_dir[1] * result.hit.fraction;
+                const dist_to_dest = result.hit.fraction * dist;
+                const best_down_pos: [3]f32 = hit_pos;
+                const best_down_hit_normal = hit_normal;
+
+                if (ray_dir[1] > 0) {
+                    for (0..5) |x| {
+                        for (0..5) |z| {
+                            const step_dist = dist_to_dest * 0.01;
+                            const x_f: f32 = (@as(f32, @floatFromInt(x)) - 2) * step_dist;
+                            const z_f: f32 = (@as(f32, @floatFromInt(z)) - 2) * step_dist;
+                            const down_ray_origin = [_]f32{ hit_pos[0] + x_f, hit_pos[1] + 100, hit_pos[2] + z_f, 0 };
+                            const down_ray_dir = [_]f32{ 0, -200, 0, 0 };
+
+                            const down_ray = zphy.RRayCast{
+                                .origin = down_ray_origin,
+                                .direction = down_ray_dir,
+                            };
+
+                            bodies = physics_world.getBodiesUnsafe();
+                            query = physics_world.getNarrowPhaseQuery();
+                            var down_result = query.castRay(down_ray, .{});
+                            if (!down_result.has_hit) {
+                                bodies = physics_world_low.getBodiesUnsafe();
+                                query = physics_world_low.getNarrowPhaseQuery();
+                                down_result = query.castRay(down_ray, .{});
+
+                                if (!down_result.has_hit) {
+                                    continue;
+                                }
+
+                                const down_body_hit_opt = zphy.tryGetBody(bodies, down_result.hit.body_id);
+                                if (down_body_hit_opt == null) {
+                                    continue;
+                                }
+
+                                const down_body_hit = down_body_hit_opt.?;
+                                const down_hit_normal = down_body_hit.getWorldSpaceSurfaceNormal(down_result.hit.sub_shape_id, hit_pos);
+                                const down_hit_pos = down_ray.getPointOnRay(down_result.hit.fraction);
+                                if (down_hit_pos[1] > best_down_pos[1] and down_hit_normal[1] + 0.1 > hit_normal[1]) {
+                                    im3d.Im3d.DrawLine(
+                                        &.{
+                                            .x = down_hit_pos[0],
+                                            .y = down_hit_pos[1],
+                                            .z = down_hit_pos[2],
+                                        },
+                                        &.{
+                                            .x = best_down_pos[0],
+                                            .y = best_down_pos[1],
+                                            .z = best_down_pos[2],
+                                        },
+                                        1,
+                                        color,
+                                    );
+
+                                    best_down_pos = down_hit_pos;
+                                    best_down_hit_normal = down_hit_normal;
+                                    // dist_to_dest =
+                                    im3d.Im3d.DrawLine(
+                                        &.{
+                                            .x = down_hit_pos[0],
+                                            .y = down_hit_pos[1],
+                                            .z = down_hit_pos[2],
+                                        },
+                                        &.{
+                                            .x = down_hit_pos[0] + down_hit_normal[0] * 10,
+                                            .y = down_hit_pos[1] + down_hit_normal[1] * 10,
+                                            .z = down_hit_pos[2] + down_hit_normal[2] * 10,
+                                        },
+                                        1,
+                                        color,
+                                    );
+                                } else {
+                                    im3d.Im3d.DrawLine(
+                                        &.{
+                                            .x = down_hit_pos[0],
+                                            .y = down_hit_pos[1],
+                                            .z = down_hit_pos[2],
+                                        },
+                                        &.{
+                                            .x = down_hit_pos[0] + down_hit_normal[0] * 5,
+                                            .y = down_hit_pos[1] + down_hit_normal[1] * 5,
+                                            .z = down_hit_pos[2] + down_hit_normal[2] * 5,
+                                        },
+                                        1,
+                                        color_red,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+
+                hit_pos = best_down_pos;
+                hit_normal = best_down_hit_normal;
+                const height_next = hit_pos[1];
+
                 if (config.ocean_level + 5 > height_next) {
                     // std.log.info("can't journey due to height {d}", .{height_next});
                     color.setG(0);
@@ -258,7 +354,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 const height_term = @max(1.0, height_prev * 0.01 + height_next * 0.01);
                 const walk_winding = 1.2;
                 const height_factor = height_term;
-                const dist_as_the_crow_flies = result.hit.fraction * dist;
+                const dist_as_the_crow_flies = dist_to_dest;
                 const dist_travel = walk_winding * dist_as_the_crow_flies;
                 const time_fudge = 4.0 / 24.0;
                 const duration = time_fudge * height_factor * dist_travel / walk_meter_per_second;
