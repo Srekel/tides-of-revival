@@ -525,7 +525,7 @@ pub fn write_trees(heightmap: types.ImageF32, points: types.PatchDataPts2d) void
                     @as(u64, @intFromFloat(@trunc(prop[0]))),
                     @as(u64, @intFromFloat(@trunc(prop[1]))),
                 );
-                if (height < 150) {
+                if (height + 10 * @sin(prop[0] + prop[1]) < 150) {
                     continue; // HACK
                 }
 

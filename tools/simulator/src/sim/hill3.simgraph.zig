@@ -833,7 +833,7 @@ pub fn generate_trees_points(ctx: *Context) void {
     std.log.info("Node: generate_trees_points [points_grid]", .{});
 
     trees_points = types.PatchDataPts2d.create(1, fbm_trees_image.size.width / 128, 100, std.heap.c_allocator);
-    nodes.experiments.points_distribution_grid(fbm_trees_image, 0.3, .{ .cell_size = 8, .size = fbm_trees_image.size }, &trees_points);
+    nodes.experiments.points_distribution_grid(fbm_trees_image, 0.5, .{ .cell_size = 16, .size = fbm_trees_image.size }, &trees_points);
 
     ctx.next_nodes.insert(0, output_trees_to_file) catch unreachable;
 }
