@@ -223,6 +223,13 @@ fn updateInteractors(it: *ecs.iter_t) callconv(.C) void {
     const world_time = environment_info.world_time;
 
     if (environment_info.journey_state != .not or environment_info.rest_state != .not) {
+        for (interactors) |interactor_comp| {
+            const item_ent_id = interactor_comp.wielded_item_ent_id;
+            var item_pos = ecs.get_mut(ecs_world, item_ent_id, fd.Position).?;
+            const target_pos_y: f32 = -0.75;
+            item_pos.y = std.math.lerp(item_pos.y, target_pos_y, 0.01);
+        }
+
         return;
     }
 
