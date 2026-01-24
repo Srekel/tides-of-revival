@@ -167,7 +167,9 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
 
     const player_ent = ecs.lookup(ctx.ecsu_world.world, "main_player");
     const player_comp = ecs.get(ctx.ecsu_world.world, player_ent, fd.Player).?;
-    // TODO: No, interaction shouldn't be in camera.. :)
+    const slime_ent = ecs.lookup(ctx.ecsu_world.world, "mama_slime");
+    const up_z = zm.f32x4(0, 1, 0, 0);
+
     for (inputs, cameras, transforms, rotations, positions) |input_comp, cam, transform, *rot, *pos| {
         _ = pos; // autofix
         _ = input_comp; // autofix
@@ -229,6 +231,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
 
                 var color = im3d.Im3d.Color.init5b(1, 1, 1, 1);
                 const color_red = im3d.Im3d.Color.init5b(1, 0, 0, 1);
+                _ = color_red; // autofix
                 // defer im3d.Im3d.DrawLine(
                 //     &.{
                 //         .x = hit_pos[0],
@@ -245,8 +248,8 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 // );
 
                 const dist_to_dest = result.hit.fraction * dist;
-                const best_down_pos: [3]f32 = hit_pos;
-                const best_down_hit_normal = hit_normal;
+                var best_down_pos: [3]f32 = hit_pos;
+                var best_down_hit_normal = hit_normal;
 
                 if (ray_dir[1] > 0) {
                     for (0..5) |x| {
@@ -282,54 +285,54 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                                 const down_body_hit = down_body_hit_opt.?;
                                 const down_hit_normal = down_body_hit.getWorldSpaceSurfaceNormal(down_result.hit.sub_shape_id, hit_pos);
                                 const down_hit_pos = down_ray.getPointOnRay(down_result.hit.fraction);
-                                if (down_hit_pos[1] > best_down_pos[1] and down_hit_normal[1] + 0.1 > hit_normal[1]) {
-                                    im3d.Im3d.DrawLine(
-                                        &.{
-                                            .x = down_hit_pos[0],
-                                            .y = down_hit_pos[1],
-                                            .z = down_hit_pos[2],
-                                        },
-                                        &.{
-                                            .x = best_down_pos[0],
-                                            .y = best_down_pos[1],
-                                            .z = best_down_pos[2],
-                                        },
-                                        1,
-                                        color,
-                                    );
+                                if (down_hit_pos[1] < 700 and down_hit_pos[1] > best_down_pos[1] and down_hit_normal[1] + 0.1 > hit_normal[1]) {
+                                    // im3d.Im3d.DrawLine(
+                                    //     &.{
+                                    //         .x = down_hit_pos[0],
+                                    //         .y = down_hit_pos[1],
+                                    //         .z = down_hit_pos[2],
+                                    //     },
+                                    //     &.{
+                                    //         .x = best_down_pos[0],
+                                    //         .y = best_down_pos[1],
+                                    //         .z = best_down_pos[2],
+                                    //     },
+                                    //     1,
+                                    //     color,
+                                    // );
 
                                     best_down_pos = down_hit_pos;
                                     best_down_hit_normal = down_hit_normal;
                                     // dist_to_dest =
-                                    im3d.Im3d.DrawLine(
-                                        &.{
-                                            .x = down_hit_pos[0],
-                                            .y = down_hit_pos[1],
-                                            .z = down_hit_pos[2],
-                                        },
-                                        &.{
-                                            .x = down_hit_pos[0] + down_hit_normal[0] * 10,
-                                            .y = down_hit_pos[1] + down_hit_normal[1] * 10,
-                                            .z = down_hit_pos[2] + down_hit_normal[2] * 10,
-                                        },
-                                        1,
-                                        color,
-                                    );
+                                    // im3d.Im3d.DrawLine(
+                                    //     &.{
+                                    //         .x = down_hit_pos[0],
+                                    //         .y = down_hit_pos[1],
+                                    //         .z = down_hit_pos[2],
+                                    //     },
+                                    //     &.{
+                                    //         .x = down_hit_pos[0] + down_hit_normal[0] * 10,
+                                    //         .y = down_hit_pos[1] + down_hit_normal[1] * 10,
+                                    //         .z = down_hit_pos[2] + down_hit_normal[2] * 10,
+                                    //     },
+                                    //     1,
+                                    //     color,
+                                    // );
                                 } else {
-                                    im3d.Im3d.DrawLine(
-                                        &.{
-                                            .x = down_hit_pos[0],
-                                            .y = down_hit_pos[1],
-                                            .z = down_hit_pos[2],
-                                        },
-                                        &.{
-                                            .x = down_hit_pos[0] + down_hit_normal[0] * 5,
-                                            .y = down_hit_pos[1] + down_hit_normal[1] * 5,
-                                            .z = down_hit_pos[2] + down_hit_normal[2] * 5,
-                                        },
-                                        1,
-                                        color_red,
-                                    );
+                                    // im3d.Im3d.DrawLine(
+                                    //     &.{
+                                    //         .x = down_hit_pos[0],
+                                    //         .y = down_hit_pos[1],
+                                    //         .z = down_hit_pos[2],
+                                    //     },
+                                    //     &.{
+                                    //         .x = down_hit_pos[0] + down_hit_normal[0] * 5,
+                                    //         .y = down_hit_pos[1] + down_hit_normal[1] * 5,
+                                    //         .z = down_hit_pos[2] + down_hit_normal[2] * 5,
+                                    //     },
+                                    //     1,
+                                    //     color_red,
+                                    // );
                                 }
                             }
                         }
@@ -391,7 +394,6 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 // }
 
                 const hit_normal_z = zm.loadArr3(hit_normal);
-                const up_z = zm.f32x4(0, 1, 0, 0);
                 const dot = zm.dot3(up_z, hit_normal_z)[0];
                 if (dot < 0.5) {
                     // TODO trigger sound
@@ -410,7 +412,6 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     environment_info.can_journey = .no;
                 }
 
-                const slime_ent = ecs.lookup(ctx.ecsu_world.world, "mama_slime");
                 if (slime_ent != 0 and ecs.is_alive(ctx.ecsu_world.world, slime_ent)) {
                     const slime_transform_opt = ecs.get(ctx.ecsu_world.world, slime_ent, fd.Transform);
                     if (slime_transform_opt) |slime_transform| {
@@ -452,11 +453,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     return;
                 }
 
-                environment_info.journey_destination = .{
-                    ray_origin[0] + ray_dir[0] * result.hit.fraction,
-                    height_next,
-                    ray_origin[2] + ray_dir[2] * result.hit.fraction,
-                };
+                environment_info.journey_destination = hit_pos;
 
                 environment_info.journey_time_end = environment_info.world_time + duration;
                 std.log.info("time:{d} distcrow:{d} dist:{d} duration_h:{d} height_factor{d} end:{d}", .{
@@ -476,13 +473,12 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 var journey_cam = environment_info.journey_camera.?.getMut(fd.Camera).?;
                 player_cam.active = false;
                 journey_cam.active = true;
-                var cam_pos = environment_info.journey_camera.?.getMut(fd.Position).?;
-                zm.storeArr3(cam_pos.elems(), z_pos);
-                var cam_rot = environment_info.journey_camera.?.getMut(fd.Rotation).?;
-                var cam_rot_z = zm.quatFromMat(z_mat);
-                const down_z = zm.f32x4(0, -1, 0, 0);
-                cam_rot_z = zm.slerp(cam_rot_z, down_z, 0.5);
-                zm.storeArr4(cam_rot.elems(), cam_rot_z);
+                var journey_cam_pos = environment_info.journey_camera.?.getMut(fd.Position).?;
+                const player_cam_transform = environment_info.player_camera.?.getMut(fd.Transform).?;
+                zm.storeArr3(journey_cam_pos.elems(), zm.util.getTranslationVec(player_cam_transform.asZM()));
+                const journey_cam_rot = environment_info.journey_camera.?.getMut(fd.Rotation).?;
+                const player_cam_rot_z = zm.quatFromMat(player_cam_transform.asZM());
+                zm.storeArr4(journey_cam_rot.elems(), player_cam_rot_z);
             },
             .transition_in => {
                 environment_info.player_state_time += ui_dt * 4;
@@ -502,6 +498,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 cam_pos.y += environment_info.player_state_time * environment_info.player_state_time * 5;
             },
             .journeying => {
+                const cam_fwd = environment_info.journey_camera.?.getMut(fd.Forward).?;
                 var cam_pos = environment_info.journey_camera.?.getMut(fd.Position).?;
                 var z_cam_pos = cam_pos.asZM();
                 var z_dest = zm.loadArr3(environment_info.journey_destination);
@@ -509,17 +506,18 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 z_start[1] += 5;
                 z_dest[1] += 5;
 
+                var cam_y_prev = cam_pos.y;
                 const percent = (environment_info.world_time - environment_info.journey_time_start.?) / (environment_info.journey_time_end.? - environment_info.journey_time_start.?);
                 z_cam_pos = zm.lerp(z_start, z_dest, easeInOutSine(@as(f32, @floatCast(percent))));
                 zm.storeArr3(cam_pos.elems(), z_cam_pos);
 
                 const ray_origin = [_]f32{
-                    z_cam_pos[0],
-                    z_cam_pos[1] + 100,
-                    z_cam_pos[2],
+                    z_cam_pos[0] + cam_fwd.x * 10,
+                    z_cam_pos[1] + 500,
+                    z_cam_pos[2] + cam_fwd.z * 10,
                     0,
                 };
-                const ray_dir = [_]f32{ 0, -200, 0, 0 };
+                const ray_dir = [_]f32{ 0, -2000, 0, 0 };
                 const ray = zphy.RRayCast{
                     .origin = ray_origin,
                     .direction = ray_dir,
@@ -529,12 +527,53 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 var target_y = cam_pos.y;
                 if (result.has_hit) {
                     const hit_pos = ray.getPointOnRay(result.hit.fraction);
-                    target_y = hit_pos[1] + 5;
+                    cam_y_prev = @max(cam_y_prev, hit_pos[1] + 4);
+                    target_y = @max(config.ocean_level + 10, hit_pos[1] + 5);
                 } else {
                     target_y = cam_pos.y;
                 }
 
-                cam_pos.y = std.math.lerp(cam_pos.y, target_y, 0.6);
+                cam_pos.y = std.math.lerp(cam_y_prev, target_y, 0.05);
+                z_cam_pos = cam_pos.asZM();
+
+                // look at mama slime
+                if (slime_ent != 0 and ecs.is_alive(ctx.ecsu_world.world, slime_ent)) {
+                    const slime_pos = ecs.get(ctx.ecsu_world.world, slime_ent, fd.Position).?;
+                    const slime_pos_z = slime_pos.asZM();
+                    const vec_to_slime = (slime_pos_z - z_cam_pos);
+                    const ms_ray_origin = [_]f32{ cam_pos.x, cam_pos.y + 5, cam_pos.z, 0 };
+                    const ms_ray_dir = [_]f32{
+                        vec_to_slime[0] * 0.95,
+                        vec_to_slime[1] * 0.95,
+                        vec_to_slime[2] * 0.95,
+                        0,
+                    };
+                    const ms_ray = zphy.RRayCast{
+                        .origin = ms_ray_origin,
+                        .direction = ms_ray_dir,
+                    };
+                    const ms_result = query.castRay(ms_ray, .{});
+                    if (!ms_result.has_hit) {
+                        const journey_cam_transform = environment_info.journey_camera.?.getMut(fd.Transform).?;
+                        const cam_right = zm.util.getAxisX(journey_cam_transform.asZM());
+                        const dot = zm.dot3(zm.normalize3(ms_ray_dir), cam_right);
+                        const rot_right = zm.quatFromAxisAngle(up_z, dot[0] * 0.01);
+
+                        // zm.storeArr3(journey_cam_pos.elems(), zm.util.getTranslationVec(player_cam_transform.asZM()));
+                        // const journey_cam_rot = environment_info.journey_camera.?.getMut(fd.Rotation).?;
+                        // const player_cam_rot_z = zm.quatFromMat(player_cam_transform.asZM());
+                        // zm.storeArr4(journey_cam_rot.elems(), player_cam_rot_z);
+
+                        // const lookat_z = zm.lookToLh(.{ 0, 0, 0, 0 }, zm.normalize3(ms_ray_dir), up_z);
+                        // const lookat_z = zm.lookAtLh(z_cam_pos, slime_pos_z, up_z);
+                        // const lookat_rot_z = zm.quatFromMat(lookat_z);
+                        const journey_cam_rot = environment_info.journey_camera.?.getMut(fd.Rotation).?;
+                        var journey_cam_rot_z = journey_cam_rot.asZM();
+                        journey_cam_rot_z = zm.qmul(journey_cam_rot_z, rot_right);
+                        journey_cam_rot.fromZM(journey_cam_rot_z);
+                        // journey_cam_rot.fromZM(lookat_rot_z);
+                    }
+                }
 
                 if (environment_info.journey_time_end.? < environment_info.world_time) {
                     std.log.info("done time:{d}", .{environment_info.world_time});
@@ -618,6 +657,7 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
 
     const player_ent = ecs.lookup(ctx.ecsu_world.world, "main_player");
     const player_comp = ecs.get(ctx.ecsu_world.world, player_ent, fd.Player).?;
+    const slime_ent = ecs.lookup(ctx.ecsu_world.world, "mama_slime");
 
     // TODO: No, interaction shouldn't be in camera.. :)
     for (inputs, cameras, transforms, rotations, positions) |input_comp, cam, transform, *rot, *pos| {
@@ -631,7 +671,6 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
         const z_fwd = zm.util.getAxisZ(z_mat);
 
         const near_mama = blk: {
-            const slime_ent = ecs.lookup(ctx.ecsu_world.world, "mama_slime");
             if (slime_ent != 0 and ecs.is_alive(ctx.ecsu_world.world, slime_ent)) {
                 const MIN_DIST_TO_ENEMY_SQ = 200 * 200;
                 const slime_pos = ecs.get(ctx.ecsu_world.world, slime_ent, fd.Position).?;
