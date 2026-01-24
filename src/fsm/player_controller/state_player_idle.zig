@@ -216,6 +216,15 @@ fn playVoiceOver(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: 
     }
 
     if (environment_info.journey_state == .not and environment_info.rest_state == .not) {
+        const slime_ent = ecs.lookup(ctx.ecsu_world.world, "mama_slime");
+        const slime_aggro = blk: {
+            if (slime_ent != 0 and ecs.is_alive(ctx.ecsu_world.world, slime_ent)) {
+                break :blk false;
+            }
+            const enemy_comp = ecs.get(ctx.ecsu_world.world, slime_ent, fd.Enemy).?;
+            break :blk enemy_comp.aggressive or !enemy_comp.idling;
+        };
+        const ambience_from_aggro: f32 = if (slime_aggro) 0.15 else 1;
         const time_f: f32 = @floatCast(environment_info.world_time);
         const height = pos.y;
 
@@ -223,7 +232,8 @@ fn playVoiceOver(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: 
         const wind_height = @min(1, @max(0, (height - 200) / 500));
         const wind_from_time = 0.25 * (2 + @min(2, @max(-2, (1.5 * (math.sin(time_f * 0.12) + math.cos(time_f * 0.23))))));
         const wind_from_height = wind_height * wind_height;
-        const wind = 2 * wind_from_height * (0.15 + 0.85 * wind_from_time);
+
+        const wind = 2 * wind_from_height * ambience_from_aggro * (0.15 + 0.85 * wind_from_time);
         player.ambience_wind.setVolume(std.math.lerp(player.ambience_wind.getVolume(), wind, 0.05));
 
         // BIRD AMBIENCE
@@ -254,7 +264,7 @@ fn playVoiceOver(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: 
         }
 
         const bird_from_time = 0.25 * (2 + @min(2, @max(-2, (1.5 * (math.sin(time_f * 0.17) + math.cos(time_f * 0.27))))));
-        const bird = 2 * bird_intensity * bird_from_time;
+        const bird = 2 * bird_intensity * bird_from_time * ambience_from_aggro;
         player.ambience_birds.setVolume(std.math.lerp(player.ambience_birds.getVolume(), bird, 0.05));
         // std.log.info("bird {d:.2} time {d:.2} intensity {d:.2} | wind {d:.2} time {d:.2} height {d:.2}", .{
         //     bird,

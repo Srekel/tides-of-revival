@@ -372,6 +372,8 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                 locomotion.sfx_footstep_next_time = environment_info.world_time + @as(f64, @floatCast(footstep_delay));
                 if (dist < 100) {
                     environment_info.playFootstep(pos.elems().*, enemy.base_scale);
+                } else if (dist < 500 and enemy.base_scale > 5) {
+                    environment_info.playFootstep(pos.elems().*, enemy.base_scale);
                 }
             }
             // rotateTowardsTarget(pos, rot, player_pos.elemsConst().*);
@@ -590,7 +592,7 @@ const SplitIfNearPlayer = struct {
         // todo for major slime only after it's been moving towards player for some time
 
         const locomotion = ecs.get(ctx.ecsu_world.world, self.entity, fd.Locomotion).?;
-        if (enemy.base_scale <= 1.2) {
+        if (enemy.base_scale <= 1.1) {
             return .remove;
         }
 
@@ -651,7 +653,7 @@ const SplitIfNearPlayer = struct {
         enemy.idling = false;
 
         var health = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Health).?;
-        health.value = 10 + 30 * enemy.base_scale * enemy.base_scale;
+        health.value = 20 + 50 * enemy.base_scale * enemy.base_scale;
 
         var pos = ecs.get(ctx.ecsu_world.world, self.entity, fd.Position).?.*;
         pos.y += 5;
@@ -715,7 +717,7 @@ const SplitIfNearPlayer = struct {
                 SplitIfNearPlayer.id,
                 .{
                     .time = ctx.time.now + enemy.base_scale * enemy.base_scale + std.crypto.random.float(f64) * 2,
-                    .loop_type = .{ .loop = enemy.base_scale + std.crypto.random.float(f64) },
+                    .loop_type = .{ .loop = enemy.base_scale * 0.5 + std.crypto.random.float(f64) },
                 },
                 std.mem.asBytes(task_data),
             );

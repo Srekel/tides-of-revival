@@ -98,7 +98,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
 
     var player_comp = fd.Player{};
     player_comp.music = ctx.audio.createSoundFromFile("content/audio/music/the_first_forayst.mp3", .{ .flags = .{ .stream = true } }) catch unreachable;
-    player_comp.music.?.setVolume(3);
+    player_comp.music.?.setVolume(2);
     player_comp.music.?.setSpatializationEnabled(false);
     player_comp.vo_intro = ctx.audio.createSoundFromFile("content/audio/hill3/intro.wav", .{}) catch unreachable;
     player_comp.vo_intro.setVolume(4);
