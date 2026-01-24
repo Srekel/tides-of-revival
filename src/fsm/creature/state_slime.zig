@@ -91,7 +91,7 @@ fn rotateTowardsTarget(
             locomotion.speed = if (skitter) 20 / enemy.base_scale else 5 / enemy.base_scale;
         } else if (!enemy.aggressive) {
             locomotion.speed = if (is_day) 1 else 2;
-            locomotion.speed *= if (is_journeying) 0.1 else 1;
+            locomotion.speed *= if (is_journeying) 0.5 else 1;
         }
     }
 }
@@ -323,7 +323,7 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                     task_data.*.entity = mama_slime;
                     ctx.task_queue.enqueue(
                         SlimeDropTask.id,
-                        .{ .time = 5, .loop_type = .{ .loop = 20 } },
+                        .{ .time = 5, .loop_type = .{ .loop = 50 } },
                         std.mem.asBytes(task_data),
                     );
                 }
@@ -378,8 +378,10 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
             }
             // rotateTowardsTarget(pos, rot, player_pos.elemsConst().*);
         } else {
-            if (scale.y > scale.x * 0.5) {
+            if (scale.y > scale.x * 0.2) {
                 scale.y *= 0.99;
+                scale.x *= 1.002;
+                scale.z *= 1.002;
                 pos.y -= 0.1 * it.delta_system_time;
             }
         }
@@ -514,7 +516,7 @@ const SlimeDropTask = struct {
             task_data_die.*.entity = ent.id;
             ctx.task_queue.enqueue(
                 DieTask.id,
-                .{ .time = ctx.time.now + 3600, .loop_type = .once },
+                .{ .time = ctx.time.now + 5 * 3600, .loop_type = .once },
                 std.mem.asBytes(task_data_die),
             );
 
@@ -765,7 +767,7 @@ const EmsmallenTask = struct {
         }
 
         const light = ecs.get(ctx.ecsu_world.world, self.entity, fd.PointLight).?;
-        if (light.intensity < 0.5) {
+        if (light.intensity < 4) {
             return .remove;
         }
 

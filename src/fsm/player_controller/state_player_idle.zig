@@ -218,7 +218,7 @@ fn playVoiceOver(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: 
     if (environment_info.journey_state == .not and environment_info.rest_state == .not) {
         const slime_ent = ecs.lookup(ctx.ecsu_world.world, "mama_slime");
         const slime_aggro = blk: {
-            if (slime_ent != 0 and ecs.is_alive(ctx.ecsu_world.world, slime_ent)) {
+            if (slime_ent == 0 or !ecs.is_alive(ctx.ecsu_world.world, slime_ent)) {
                 break :blk false;
             }
             const enemy_comp = ecs.get(ctx.ecsu_world.world, slime_ent, fd.Enemy).?;

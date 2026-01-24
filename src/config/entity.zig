@@ -342,9 +342,10 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         defer root_shape_settings.release();
         const root_shape = root_shape_settings.createShape() catch unreachable;
 
+        const slime_rot = fd.Rotation.initFromEuler(0, std.crypto.random.float(f32) * std.math.pi, 0);
         const body_id = body_interface.createAndAddBody(.{
             .position = .{ spawn_pos[0], spawn_pos[1], spawn_pos[2], 0 },
-            .rotation = .{ 0, 0, 0, 1 },
+            .rotation = slime_rot.elemsConst().*,
             .shape = root_shape,
             .motion_type = .kinematic,
             .object_layer = config.physics.object_layers.moving,
@@ -363,7 +364,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         const light_ent = ecsu_world.newEntity();
         light_ent.childOf(ent);
         light_ent.set(fd.Position{ .x = 0, .y = 5, .z = 0 });
-        light_ent.set(fd.Rotation{});
+        light_ent.set(slime_rot);
         light_ent.set(fd.Scale.createScalar(1));
         light_ent.set(fd.Transform{});
         light_ent.set(fd.Dynamic{});
