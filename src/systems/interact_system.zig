@@ -533,7 +533,7 @@ fn updateCrosshair(it: *ecs.iter_t) callconv(.C) void {
     const crosshair_image = system.state.crosshair_ent.getMut(fd.UIImage).?;
     crosshair_image.*.rect = .{
         .x = screen_center_x - crosshair_half_size,
-        .y = screen_center_y + crosshair_half_size,
+        .y = screen_center_y - crosshair_half_size,
         .width = crosshair_size,
         .height = crosshair_size,
     };
@@ -542,7 +542,7 @@ fn updateCrosshair(it: *ecs.iter_t) callconv(.C) void {
     const boot_image = system.state.boot_ent.getMut(fd.UIImage).?;
     boot_image.*.rect = .{
         .x = screen_center_x - active_icon_size / 2,
-        .y = screen_center_y - active_icon_size / 2,
+        .y = screen_center_y - crosshair_size - active_icon_size / 2,
         .width = active_icon_size,
         .height = active_icon_size,
     };
@@ -551,7 +551,7 @@ fn updateCrosshair(it: *ecs.iter_t) callconv(.C) void {
     const rest_image = system.state.rest_ent.getMut(fd.UIImage).?;
     rest_image.*.rect = .{
         .x = screen_center_x - active_icon_size / 2,
-        .y = screen_center_y - active_icon_size / 2,
+        .y = screen_center_y - crosshair_size - active_icon_size / 2,
         .width = active_icon_size,
         .height = active_icon_size,
     };
