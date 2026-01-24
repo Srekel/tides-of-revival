@@ -249,8 +249,12 @@ fn patchPropUpdatePatches(it: *ecs.iter_t) callconv(.C) void {
             var rand = rand1.random();
             for (data.*) |prop| {
                 const prop_pos = fd.Position.init(prop.pos[0], prop.pos[1], prop.pos[2]);
-                const prop_scale: f32 = 1.0 + rand.float(f32) * 0.2;
-                const prop_rot = fd.Rotation.initFromEuler(0, prop.rot + std.math.pi * 0.5, 0);
+                const prop_scale: f32 = 0.25 + rand.float(f32) * 1.5;
+                const prop_rot = fd.Rotation.initFromEuler(
+                    rand.float(f32) * 0.1,
+                    prop.rot + std.math.pi * 0.5,
+                    rand.float(f32) * 0.1,
+                );
 
                 var prop_transform: fd.Transform = undefined;
                 const z_prop_scale_matrix = zm.scaling(prop_scale, prop_scale, prop_scale);
@@ -262,12 +266,12 @@ fn patchPropUpdatePatches(it: *ecs.iter_t) callconv(.C) void {
                 prop_transform.updateInverseMatrix();
 
                 if (prop.id.hash == house_id.hash) {
-                    var house_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, system.state.medium_house_prefab);
-                    house_ent.set(prop_transform);
-                    house_ent.set(prop_pos);
-                    house_ent.set(prop_rot);
-                    house_ent.set(fd.Scale.createScalar(prop_scale));
-                    patch.entities.append(house_ent.id) catch unreachable;
+                    // var house_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, system.state.medium_house_prefab);
+                    // house_ent.set(prop_transform);
+                    // house_ent.set(prop_pos);
+                    // house_ent.set(prop_rot);
+                    // house_ent.set(fd.Scale.createScalar(prop_scale));
+                    // patch.entities.append(house_ent.id) catch unreachable;
                 } else if (prop.id.hash == tree_id.hash) {
                     var fir_tree_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, system.state.tree_prefab);
                     fir_tree_ent.set(prop_transform);
@@ -276,12 +280,12 @@ fn patchPropUpdatePatches(it: *ecs.iter_t) callconv(.C) void {
                     fir_tree_ent.set(fd.Scale.createScalar(prop_scale));
                     patch.entities.append(fir_tree_ent.id) catch unreachable;
                 } else if (prop.id.hash == wall_id.hash) {
-                    var wall_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, system.state.cube_prefab);
-                    wall_ent.set(prop_transform);
-                    wall_ent.set(prop_pos);
-                    wall_ent.set(prop_rot);
-                    wall_ent.set(fd.Scale.createScalar(prop_scale));
-                    patch.entities.append(wall_ent.id) catch unreachable;
+                    // var wall_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, system.state.cube_prefab);
+                    // wall_ent.set(prop_transform);
+                    // wall_ent.set(prop_pos);
+                    // wall_ent.set(prop_rot);
+                    // wall_ent.set(fd.Scale.createScalar(prop_scale));
+                    // patch.entities.append(wall_ent.id) catch unreachable;
                 } else {
                     var prop_ent = system.ecsu_world.newEntity();
                     prop_ent.set(prop_transform);

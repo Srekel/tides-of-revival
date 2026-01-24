@@ -656,8 +656,8 @@
       // vars
       points: "trees_points",
       image: "fbm_trees_image",
-      cell_size: 8,
-      score_min: 0.3,
+      cell_size: 16,
+      score_min: 0.5,
     },
     {
       name: "output_trees_to_file",
