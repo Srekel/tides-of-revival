@@ -208,6 +208,14 @@ pub const Rotation = struct {
     pub fn fromZM(self: *Rotation, rot_z: zm.Quat) void {
         zm.storeArr4(self.elems(), rot_z);
     }
+    pub fn forward_z(self: *Rotation) zm.Vec {
+        const rot_z = zm.loadArr4(self.elems().*);
+        return zm.rotate(rot_z, .{ 0, 0, 1, 0 });
+    }
+    pub fn right_z(self: *Rotation) zm.Vec {
+        const rot_z = zm.loadArr4(self.elems().*);
+        return zm.rotate(rot_z, .{ 1, 0, 0, 0 });
+    }
 };
 
 pub const EulerRotation = struct {

@@ -171,10 +171,10 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
     const up_z = zm.f32x4(0, 1, 0, 0);
 
     for (inputs, cameras, transforms, rotations, positions) |input_comp, cam, transform, *rot, *pos| {
+        _ = rot; // autofix
         _ = pos; // autofix
         _ = input_comp; // autofix
         _ = cam; // autofix
-        _ = rot; // autofix
 
         var environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
         var vignette_settings = &ctx.renderer.post_processing_pass.vignette_settings;
@@ -189,6 +189,20 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
         const z_mat = zm.loadMat43(transform.matrix[0..]);
         const z_pos = zm.util.getTranslationVec(z_mat);
         const z_fwd = zm.util.getAxisZ(z_mat);
+
+        {
+            // const journey_cam_rot = environment_info.journey_camera.?.getMut(fd.Rotation).?;
+
+            // var journey_cam_pos = environment_info.journey_camera.?.getMut(fd.Position).?;
+            const player_cam_transform = environment_info.player_camera.?.getMut(fd.Transform).?;
+            // zm.storeArr3(journey_cam_pos.elems(), zm.util.getTranslationVec(player_cam_transform.asZM()));
+            // const journey_cam_rot = environment_info.journey_camera.?.getMut(fd.Rotation).?;
+            const player_cam_rot_z = zm.quatFromMat(player_cam_transform.asZM());
+            // zm.storeArr4(journey_cam_rot.elems(), player_cam_rot_z);
+            const rpy = zm.quatToRollPitchYaw(player_cam_rot_z);
+            _ = rpy; // autofix
+            // std.log.info("lol rpy {any}", .{rpy});
+        }
 
         switch (environment_info.journey_state) {
             .not => {
@@ -353,7 +367,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
 
                 const height_prev = player_pos.y;
 
-                const walk_meter_per_second = 1.35;
+                const walk_meter_per_second = 10.35;
                 const height_term = @max(1.0, height_prev * 0.01 + height_next * 0.01);
                 const walk_winding = 1.2;
                 const height_factor = height_term;
@@ -465,7 +479,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     environment_info.journey_time_end.?,
                 });
 
-                environment_info.journey_time_multiplier = 20 + dist_as_the_crow_flies * 0.1;
+                environment_info.journey_time_multiplier = 20 + dist_as_the_crow_flies * 0.01;
                 environment_info.player_state_time = 0;
                 environment_info.journey_state = .transition_in;
                 environment_info.active_camera = environment_info.journey_camera;
@@ -511,53 +525,65 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 z_cam_pos = zm.lerp(z_start, z_dest, easeInOutSine(@as(f32, @floatCast(percent))));
                 zm.storeArr3(cam_pos.elems(), z_cam_pos);
 
-                const ray_origin = [_]f32{
-                    z_cam_pos[0] + cam_fwd.x * 10,
-                    z_cam_pos[1] + 500,
-                    z_cam_pos[2] + cam_fwd.z * 10,
-                    0,
-                };
-                const ray_dir = [_]f32{ 0, -2000, 0, 0 };
-                const ray = zphy.RRayCast{
-                    .origin = ray_origin,
-                    .direction = ray_dir,
-                };
-                const query = physics_world_low.getNarrowPhaseQuery();
-                const result = query.castRay(ray, .{});
-                var target_y = cam_pos.y;
-                if (result.has_hit) {
-                    const hit_pos = ray.getPointOnRay(result.hit.fraction);
-                    cam_y_prev = @max(cam_y_prev, hit_pos[1] + 4);
-                    target_y = @max(config.ocean_level + 10, hit_pos[1] + 5);
-                } else {
-                    target_y = cam_pos.y;
+                var target_y: f32 = 0;
+                for (0..2) |i_dir| {
+                    const dir_mult: f32 = if (i_dir == 0) -1 else 1;
+                    const ray_origin = [_]f32{
+                        z_cam_pos[0] + cam_fwd.x * 30 * dir_mult,
+                        z_cam_pos[1] + 500,
+                        z_cam_pos[2] + cam_fwd.z * 30 * dir_mult,
+                        0,
+                    };
+                    const ray_dir = [_]f32{ 0, -2000, 0, 0 };
+                    const ray = zphy.RRayCast{
+                        .origin = ray_origin,
+                        .direction = ray_dir,
+                    };
+                    const query = physics_world_low.getNarrowPhaseQuery();
+                    const result = query.castRay(ray, .{});
+                    if (result.has_hit) {
+                        const hit_pos = ray.getPointOnRay(result.hit.fraction);
+                        cam_y_prev = @max(cam_y_prev, hit_pos[1] + 4);
+                        target_y = @max(target_y, hit_pos[1] + 10);
+                        target_y = @max(target_y, config.ocean_level + 10);
+                    }
                 }
 
-                cam_pos.y = std.math.lerp(cam_y_prev, target_y, 0.05);
+                if (target_y == 0)
+                    target_y = cam_pos.y;
+
+                cam_pos.y = std.math.lerp(cam_y_prev, target_y, 0.03);
                 z_cam_pos = cam_pos.asZM();
 
                 // look at mama slime
+                var ms_ray_dir_z: zm.Vec = .{ 1, 0, 0, 0 };
                 if (slime_ent != 0 and ecs.is_alive(ctx.ecsu_world.world, slime_ent)) {
                     const slime_pos = ecs.get(ctx.ecsu_world.world, slime_ent, fd.Position).?;
                     const slime_pos_z = slime_pos.asZM();
                     const vec_to_slime = (slime_pos_z - z_cam_pos);
                     const ms_ray_origin = [_]f32{ cam_pos.x, cam_pos.y + 5, cam_pos.z, 0 };
                     const ms_ray_dir = [_]f32{
-                        vec_to_slime[0] * 0.95,
-                        vec_to_slime[1] * 0.95,
-                        vec_to_slime[2] * 0.95,
+                        vec_to_slime[0] * 0.99,
+                        vec_to_slime[1] * 0.99,
+                        vec_to_slime[2] * 0.99,
                         0,
                     };
+                    ms_ray_dir_z = zm.normalize3(zm.loadArr4(vec_to_slime));
                     const ms_ray = zphy.RRayCast{
                         .origin = ms_ray_origin,
                         .direction = ms_ray_dir,
                     };
+                    const query = physics_world_low.getNarrowPhaseQuery();
                     const ms_result = query.castRay(ms_ray, .{});
                     if (!ms_result.has_hit) {
-                        const journey_cam_transform = environment_info.journey_camera.?.getMut(fd.Transform).?;
+                        const journey_cam_transform = environment_info.journey_camera.?.get(fd.Transform).?;
                         const cam_right = zm.util.getAxisX(journey_cam_transform.asZM());
-                        const dot = zm.dot3(zm.normalize3(ms_ray_dir), cam_right);
-                        const rot_right = zm.quatFromAxisAngle(up_z, dot[0] * 0.01);
+                        // const cam_up = zm.util.getAxisY(journey_cam_transform.asZM());
+                        const dot_right = zm.dot3(zm.normalize3(ms_ray_dir), cam_right);
+                        const rot_right = zm.quatFromAxisAngle(up_z, dot_right[0] * 0.01);
+                        // const dot_up = zm.dot3(up_z, cam_up);
+                        // const rot_up = zm.quatFromAxisAngle(up_z, dot_up[0] * 0.01);
+                        // _ = rot_up; // autofix
 
                         // zm.storeArr3(journey_cam_pos.elems(), zm.util.getTranslationVec(player_cam_transform.asZM()));
                         // const journey_cam_rot = environment_info.journey_camera.?.getMut(fd.Rotation).?;
@@ -570,7 +596,13 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                         const journey_cam_rot = environment_info.journey_camera.?.getMut(fd.Rotation).?;
                         var journey_cam_rot_z = journey_cam_rot.asZM();
                         journey_cam_rot_z = zm.qmul(journey_cam_rot_z, rot_right);
+                        // journey_cam_rot_z = zm.qmul(journey_cam_rot_z, rot_up);
                         journey_cam_rot.fromZM(journey_cam_rot_z);
+                        const rpy = zm.quatToRollPitchYaw(journey_cam_rot.asZM());
+                        const yaw = rpy[1];
+                        _ = yaw; // autofix
+                        std.log.info("lol rpy {any}", .{rpy});
+                        // journey_cam_rot.fromZM(zm.quatFromRollPitchYaw(0, yaw, 0));
                         // journey_cam_rot.fromZM(lookat_rot_z);
                     }
                 }
@@ -584,15 +616,42 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     player_pos.x = environment_info.journey_destination[0];
                     player_pos.y = environment_info.journey_destination[1];
                     player_pos.z = environment_info.journey_destination[2];
+                    const journey_cam_rot = environment_info.journey_camera.?.getMut(fd.Rotation).?;
+                    var journey_cam_fwd = journey_cam_rot.forward_z();
+                    journey_cam_fwd[1] = 0;
+                    journey_cam_fwd = zm.normalize3(journey_cam_fwd);
+
+                    // get angle between polayer and flat journey cam
+                    const player_rot_comp = environment_info.player.?.getMut(fd.Rotation).?;
+                    const player_fwd = player_rot_comp.forward_z();
+                    const player_right = player_rot_comp.right_z();
+                    const dot_z = zm.dot3(player_fwd, journey_cam_fwd);
+                    const clamped_dot_z = zm.clamp(dot_z, zm.splat(zm.Vec, -1), zm.splat(zm.Vec, 1));
+                    const angle = zm.acos(clamped_dot_z);
+                    const dot_right = zm.dot3(player_right, ms_ray_dir_z);
+                    const real_angle = if (dot_right[0] > 0) angle[0] else -angle[0];
+                    const new_player_rot_z = zm.quatFromAxisAngle(up_z, real_angle);
+                    // const new_player_rot2_z = zm.qmul(new_player_rot_z, player_rot_comp.asZM());
+                    const new_player_rot2_z = zm.qmul(player_rot_comp.asZM(), new_player_rot_z);
+
+                    // const rpy = zm.quatToRollPitchYaw(journey_cam_rot.asZM());
+                    // const yaw = rpy[1];
+                    // rot.fromZM(zm.quatFromRollPitchYaw(0, yaw, 0));
+                    player_rot_comp.fromZM(new_player_rot2_z);
+
+                    // const rpy = zm.quatToRollPitchYaw(journey_cam_rot.asZM());
+                    // const yaw = rpy[1];
+                    // std.log.info("lol rpy {any}", .{rpy});
+                    // journey_cam_rot.fromZM(zm.quatFromRollPitchYaw(0, yaw, 0));
                 }
             },
             .transition_out => {
-                environment_info.player_state_time -= ui_dt * 2;
+                environment_info.player_state_time -= ui_dt * 1;
 
                 var cam_pos = environment_info.journey_camera.?.getMut(fd.Position).?;
                 var cam_pos_z = zm.loadArr3(cam_pos.elems().*);
                 cam_pos_z = zm.lerp(cam_pos_z, z_pos, 1 - environment_info.player_state_time);
-                zm.storeArr3(cam_pos.elems(), z_pos);
+                zm.storeArr3(cam_pos.elems(), cam_pos_z);
                 // cam_pos.y += environment_info.player_state_time * 5;
 
                 if (environment_info.player_state_time <= 0) {
