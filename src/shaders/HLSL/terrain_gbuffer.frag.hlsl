@@ -4,6 +4,7 @@
 #include "terrain_gbuffer_resources.hlsli"
 #include "utils.hlsli"
 #include "triplanar_mapping.hlsli"
+#include "FastNoiseLite.hlsli"
 
 // Triplanar Sampling
 // =================
@@ -147,9 +148,16 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     N = normalize(lerp(rock_normal, grass_normal, slope));
 
     // Blend in snow
-    float world_height_mask = smoothstep(800, 810, Input.PositionWS.y); // saturate(inverseLerp(0, 850, Input.PositionWS.y));
-    world_height_mask *= smoothstep(0.05, 0.1, slope);
-    // world_height_mask += smoothstep(800, 900, Input.PositionWS.y);
+    const float snow_height_fudge = 200;
+    const float snow_height_transition = 10;
+    fnl_state state = fnlCreateState();
+    state.fractal_type = FNL_FRACTAL_FBM;
+    state.frequency = 0.02;
+
+    float noise = fnlGetNoise2D(state, Input.PositionWS.x, Input.PositionWS.z) * snow_height_fudge;
+    float snow_height = 800 + noise;
+    float world_height_mask = smoothstep(snow_height, snow_height + snow_height_transition, Input.PositionWS.y); // saturate(inverseLerp(0, 850, Input.PositionWS.y));
+    world_height_mask *= smoothstep(0.70, 0.701, saturate(dot(float3(0, 1, 0), N) * 0.5 + 0.5));
 
     albedo = lerp(albedo, snow_albedo, world_height_mask);
     N = lerp(N, snow_normal, world_height_mask);
