@@ -124,7 +124,7 @@ const RasterizerParams = struct {
 };
 
 const RenderSettings = struct {
-    freeze_rendering: bool,
+    freeze_culling: bool,
 };
 
 pub const StaticGeometryPass = struct {
@@ -414,7 +414,7 @@ pub const StaticGeometryPass = struct {
     pub fn renderImGui(self: *@This()) void {
         if (zgui.collapsingHeader("Static Geometry Renderer", .{})) {
             zgui.text("Total loaded instances: {d}", .{self.instance_buffer.element_count});
-            _ = zgui.checkbox("Freeze Culling", .{ .v = &self.render_settings.freeze_rendering });
+            _ = zgui.checkbox("Freeze Culling", .{ .v = &self.render_settings.freeze_culling });
         }
     }
 
@@ -487,16 +487,21 @@ pub const StaticGeometryPass = struct {
         // Frame Culling Uniform Buffer
         var frame_uniform_buffer_handle = self.gbuffer_bindings.frame_uniform_buffers[frame_index];
         var frame_uniform_buffer = self.renderer.getBuffer(frame_uniform_buffer_handle);
+        var frame_culling_uniform_buffer_handle = self.gbuffer_bindings.frame_culling_uniform_buffers[frame_index];
+        var frame_culling_uniform_buffer = self.renderer.getBuffer(frame_culling_uniform_buffer_handle);
         {
+            var frame_uniform_data: Frame = undefined;
             var frame_culling_uniform_data: *Frame = &self.gbuffer_bindings.frame_culling_uniform_data[frame_index];
 
             if (shadow_view) {
                 frame_uniform_buffer_handle = self.shadows_bindings[cascade_index].frame_uniform_buffers[frame_index];
                 frame_uniform_buffer = self.renderer.getBuffer(frame_uniform_buffer_handle);
+                frame_culling_uniform_buffer_handle = self.shadows_bindings[cascade_index].frame_culling_uniform_buffers[frame_index];
+                frame_culling_uniform_buffer = self.renderer.getBuffer(frame_culling_uniform_buffer_handle);
                 frame_culling_uniform_data = &self.shadows_bindings[cascade_index].frame_culling_uniform_data[frame_index];
             }
 
-            if (!self.render_settings.freeze_rendering) {
+            if (!self.render_settings.freeze_culling) {
                 zm.storeMat(&frame_culling_uniform_data.view, zm.transpose(render_view.view));
                 zm.storeMat(&frame_culling_uniform_data.proj, zm.transpose(render_view.projection));
                 zm.storeMat(&frame_culling_uniform_data.view_proj, zm.transpose(render_view.view_projection));
@@ -520,7 +525,19 @@ pub const StaticGeometryPass = struct {
                 .data = @ptrCast(frame_culling_uniform_data),
                 .size = @sizeOf(Frame),
             };
-            self.renderer.updateBuffer(frame_culling_data, 0, Frame, frame_uniform_buffer_handle);
+            self.renderer.updateBuffer(frame_culling_data, 0, Frame, frame_culling_uniform_buffer_handle);
+
+            util.memcpy(&frame_uniform_data, frame_culling_uniform_data, @sizeOf(Frame), .{});
+            zm.storeMat(&frame_uniform_data.view, zm.transpose(render_view.view));
+            zm.storeMat(&frame_uniform_data.proj, zm.transpose(render_view.projection));
+            zm.storeMat(&frame_uniform_data.view_proj, zm.transpose(render_view.view_projection));
+            zm.storeMat(&frame_uniform_data.view_proj_inv, zm.transpose(render_view.view_projection_inverse));
+
+            const frame_data = OpaqueSlice{
+                .data = @ptrCast(&frame_uniform_data),
+                .size = @sizeOf(Frame),
+            };
+            self.renderer.updateBuffer(frame_data, 0, Frame, frame_uniform_buffer_handle);
         }
 
         // Meshlets Culling
@@ -618,7 +635,7 @@ pub const StaticGeometryPass = struct {
                         var params: [3]graphics.DescriptorData = undefined;
                         params[0] = std.mem.zeroes(graphics.DescriptorData);
                         params[0].pName = "g_Frame";
-                        params[0].__union_field3.ppBuffers = @ptrCast(&frame_uniform_buffer);
+                        params[0].__union_field3.ppBuffers = @ptrCast(&frame_culling_uniform_buffer);
                         params[1] = std.mem.zeroes(graphics.DescriptorData);
                         params[1].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
                         params[1].pName = "g_CullInstancesParams";
@@ -748,7 +765,7 @@ pub const StaticGeometryPass = struct {
                         var params: [2]graphics.DescriptorData = undefined;
                         params[0] = std.mem.zeroes(graphics.DescriptorData);
                         params[0].pName = "g_Frame";
-                        params[0].__union_field3.ppBuffers = @ptrCast(&frame_uniform_buffer);
+                        params[0].__union_field3.ppBuffers = @ptrCast(&frame_culling_uniform_buffer);
                         params[1] = std.mem.zeroes(graphics.DescriptorData);
                         params[1].pName = "g_CullMeshletsParams";
                         params[1].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
