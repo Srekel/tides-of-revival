@@ -32,6 +32,21 @@ float3 RotateAroundY(float3 direction, float radians)
     return float3(mul(m, direction.xz), direction.y).xzy;
 }
 
+float3 RotateAboutAxis(float3 direction, float3 axis, float rotation)
+{
+    float s = sin(rotation);
+    float c = cos(rotation);
+    float one_minus_c = 1.0 - c;
+
+    axis = normalize(axis);
+    float3x3 rot_mat =
+        {one_minus_c * axis.x * axis.x + c, one_minus_c * axis.x * axis.y - axis.z * s, one_minus_c * axis.z * axis.x + axis.y * s,
+         one_minus_c * axis.x * axis.y + axis.z * s, one_minus_c * axis.y * axis.y + c, one_minus_c * axis.y * axis.z - axis.x * s,
+         one_minus_c * axis.z * axis.x - axis.y * s, one_minus_c * axis.y * axis.z + axis.x * s, one_minus_c * axis.z * axis.z + c};
+
+    return mul(rot_mat, direction);
+}
+
 float2 SampleSphericalMap(float3 v)
 {
     const float2 invAtan = float2(0.1591, 0.3183);
@@ -44,12 +59,13 @@ float2 SampleSphericalMap(float3 v)
 float4 PS_MAIN(VSOutput Input) : SV_Target
 {
     float3 uv = normalize(Input.UV);
-    float3 startfield_uv = RotateAroundY(uv, g_time_of_day_01 * PI * 2.0f);
+    float3 starfield_uv = RotateAboutAxis(uv, float3(1, 0, 0), PI * 0.25f);
+    starfield_uv = RotateAboutAxis(starfield_uv, float3(0, 1, 0), g_time_of_day_01 * PI * 2.0f);
 
     // Starfield
     float starfield_opacity = smoothstep(0.02f, 0.0f, g_time_of_day_01);
     starfield_opacity += smoothstep(0.48f, 0.5f, g_time_of_day_01);
-    float3 starfield = starfield_cubemap.Sample(g_linear_repeat_sampler, startfield_uv).rgb;
+    float3 starfield = starfield_cubemap.Sample(g_linear_repeat_sampler, starfield_uv).rgb;
     starfield *= starfield_opacity;
 
     // Skybox
