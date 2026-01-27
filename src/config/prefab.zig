@@ -16,6 +16,7 @@ pub var player: ecsu.Entity = undefined;
 pub var slime: ecsu.Entity = undefined;
 pub var slime_trail: ecsu.Entity = undefined;
 pub var campfire: ecsu.Entity = undefined;
+pub var lamppost: ecsu.Entity = undefined;
 
 pub const arrow_id = ID("prefab_arrow");
 pub const beech_tree_04_id = ID("beech_tree_04");
@@ -46,7 +47,7 @@ pub const brazier_2_id = ID("brazier_2_id");
 pub const campfire_id = ID("campfire_id");
 pub const stacked_stones_id = ID("stacked_stones");
 pub const lamp_id = ID("lamp_id");
-pub const lamppost_id = ID("lamppost_id");
+pub const lamppost_id = ID("lamppost");
 
 pub const prefabs = [_]IdLocal{
     arrow_id,
@@ -750,12 +751,12 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         });
     }
 
+    const campfire_wood_trim_material_id = ID("wood_trim");
+    const campfire_metal_ornaments_material_id = ID("metal_ornaments");
+
     {
         campfire = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/braziers/brazier_1", campfire_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
         campfire.setOverride(fd.Dynamic{});
-
-        const campfire_wood_trim_material_id = ID("wood_trim");
-        const campfire_metal_ornaments_material_id = ID("metal_ornaments");
 
         var wood_trim_material = renderer.UberShaderMaterialData.init();
         wood_trim_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
@@ -798,51 +799,45 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     }
 
     {
-        prefab_mgr.rctx.loadMesh("content/prefabs/props/lamppost/lamppost.mesh", lamppost_id) catch unreachable;
+        var plaster_material = renderer.UberShaderMaterialData.init();
+        plaster_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
+        plaster_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
+        plaster_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_plaster_albedo.dds");
+        plaster_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_plaster_arm.dds");
+        plaster_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_plaster_normal.dds");
+        const lamp_plaster_material_id = ID("lamp_plaster");
+        prefab_mgr.rctx.loadMaterial(lamp_plaster_material_id, plaster_material) catch unreachable;
 
-        {
-            var renderable_desc = renderer.RenderableDesc{
-                .lods_count = 1,
-                .lods = undefined,
-            };
-            renderable_desc.lods[0].mesh_id = lamppost_id;
-            renderable_desc.lods[0].materials_count = 2;
-            renderable_desc.lods[0].materials[0] = wood_trim_material_id;
-            renderable_desc.lods[0].materials[1] = metal_ornaments_material_id;
-            // renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
-            // renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
-            renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
-            renderable_desc.lods[0].screen_percentage_range[1] = 30000.0;
-            prefab_mgr.rctx.registerRenderable(lamppost_id, renderable_desc);
+        lamppost = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/lamppost/lamppost", lamppost_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+        lamppost.set(fd.Dynamic{}); // override?
+
+        const lod_group_component = lamppost.getMut(fd.LodGroup);
+        if (lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                std.debug.assert(lod_group.lods[i].materials_count == 2);
+                lod_group.lods[i].materials[0] = campfire_wood_trim_material_id;
+                lod_group.lods[i].materials[1] = campfire_metal_ornaments_material_id;
+            }
         }
 
-        const lamppost = prefab_mgr.createRenderablePrefab(lamppost_id, ecsu_world);
-        var renderable = lamppost.getMut(fd.Renderable).?;
-        renderable.id = lamppost_id;
-        renderable.draw_bounds = false;
+        const lamp = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/lamppost/lamp", lamp_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
+        lamp.set(fd.Dynamic{}); // override?
+        lamp.childOf(lamppost);
+        lamp.set(fd.PointLight{
+            .color = .{ .r = 1.0, .g = 0.8, .b = 0.6 },
+            .range = 15,
+            .intensity = 5,
+        });
+        lamp.set(fd.Position{ .x = 0, .y = 2.15, .z = 0.87 });
 
-        prefab_mgr.rctx.loadMesh("content/prefabs/props/lamppost/lamp.mesh", lamp_id) catch unreachable;
-
-        {
-            var renderable_desc = renderer.RenderableDesc{
-                .lods_count = 1,
-                .lods = undefined,
-            };
-            renderable_desc.lods[0].mesh_id = lamp_id;
-            renderable_desc.lods[0].materials_count = 2;
-            renderable_desc.lods[0].materials[0] = plaster_material_id;
-            renderable_desc.lods[0].materials[1] = metal_ornaments_material_id;
-            // renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
-            // renderable_desc.lods[0].screen_percentage_range[1] = 1.0;
-            renderable_desc.lods[0].screen_percentage_range[0] = 0.0;
-            renderable_desc.lods[0].screen_percentage_range[1] = 30000.0;
-            prefab_mgr.rctx.registerRenderable(lamp_id, renderable_desc);
+        const lamp_lod_group_component = lamp.getMut(fd.LodGroup);
+        if (lamp_lod_group_component) |lod_group| {
+            for (0..lod_group.lod_count) |i| {
+                std.debug.assert(lod_group.lods[i].materials_count == 2);
+                lod_group.lods[i].materials[0] = lamp_plaster_material_id;
+                lod_group.lods[i].materials[1] = campfire_metal_ornaments_material_id;
+            }
         }
-
-        const lamp = prefab_mgr.createRenderablePrefab(lamp_id, ecsu_world);
-        renderable = lamp.getMut(fd.Renderable).?;
-        renderable.id = lamp_id;
-        renderable.draw_bounds = false;
 
         // // TEMP: Lantern light
         // const light_ent = ecsu_world.newEntity();
@@ -859,5 +854,4 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         //     .intensity = 5,
         // });
     }
-
 }

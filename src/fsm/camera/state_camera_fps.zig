@@ -367,8 +367,8 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
 
                 const height_prev = player_pos.y;
 
-                const walk_meter_per_second = 10.35;
-                const height_term = @max(1.0, height_prev * 0.01 + height_next * 0.01);
+                const walk_meter_per_second = 1.35;
+                const height_term = @max(1.0, (height_prev - 200) * 0.01 + (height_next - 200) * 0.01);
                 const walk_winding = 1.2;
                 const height_factor = height_term;
                 const dist_as_the_crow_flies = dist_to_dest;
@@ -376,7 +376,8 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 const time_fudge = 4.0 / 24.0;
                 const duration = time_fudge * height_factor * dist_travel / walk_meter_per_second;
 
-                if (dist_as_the_crow_flies < 100) {
+                const min_dist: f32 = if (ray_dir[1] < 0) 100 else (100 - ray_dir[1] * 70);
+                if (dist_as_the_crow_flies < min_dist) {
                     // TODO trigger sound
                     // std.log.info("can't journey due to distance {d}", .{dist_as_the_crow_flies});
                     color.setG(0);
@@ -479,7 +480,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     environment_info.journey_time_end.?,
                 });
 
-                environment_info.journey_time_multiplier = 20 + dist_as_the_crow_flies * 0.01;
+                environment_info.journey_time_multiplier = 20 + dist_travel * height_factor * 0.05;
                 environment_info.player_state_time = 0;
                 environment_info.journey_state = .transition_in;
                 environment_info.active_camera = environment_info.journey_camera;
@@ -601,7 +602,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                         const rpy = zm.quatToRollPitchYaw(journey_cam_rot.asZM());
                         const yaw = rpy[1];
                         _ = yaw; // autofix
-                        std.log.info("lol rpy {any}", .{rpy});
+                        // std.log.info("lol rpy {any}", .{rpy});
                         // journey_cam_rot.fromZM(zm.quatFromRollPitchYaw(0, yaw, 0));
                         // journey_cam_rot.fromZM(lookat_rot_z);
                     }

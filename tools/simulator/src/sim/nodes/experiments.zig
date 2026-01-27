@@ -402,13 +402,23 @@ pub fn cities(world_settings: types.WorldSettings, heightmap: types.ImageF32, gr
                     heightmap.getFromFloat(node.pos[0], node.pos[1]),
                     node.pos[1],
                 };
-                props.appendAssumeCapacity(.{
-                    .name = "stacked_stones",
-                    .pos = pos,
-                    .rot = node.angle,
-                    .scale = .{ 1 + rand.float(f32) * 0.25, 1 + rand.float(f32) * 0.5, 1 + rand.float(f32) * 0.25 },
-                    .level = @intCast(1 + (path_nodes.items.len - node_index) / 10),
-                });
+                if (rand.boolean()) {
+                    props.appendAssumeCapacity(.{
+                        .name = "stacked_stones",
+                        .pos = pos,
+                        .rot = node.angle,
+                        .scale = .{ 1 + rand.float(f32) * 0.25, 1 + rand.float(f32) * 0.5, 1 + rand.float(f32) * 0.25 },
+                        .level = @intCast(1 + (path_nodes.items.len - node_index) / 10),
+                    });
+                } else {
+                    props.appendAssumeCapacity(.{
+                        .name = "lamppost",
+                        .pos = pos,
+                        .rot = node.angle,
+                        .scale = .{ 1, 1, 1 },
+                        .level = @intCast(1 + (path_nodes.items.len - node_index) / 10),
+                    });
+                }
             }
 
             break; // hack for having a reasonable amount of roads..

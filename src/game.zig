@@ -80,7 +80,7 @@ pub fn run() void {
     // Window
     window.init(root_allocator) catch unreachable;
     defer window.deinit();
-    const main_window = window.createWindow("Tides of Revival: A Fort Wasn't Built In A Day") catch unreachable;
+    const main_window = window.createWindow("Tides of Revival: A Sense of Scale") catch unreachable;
     main_window.window.setInputMode(.cursor, .disabled) catch unreachable;
 
     var arena_state = std.heap.ArenaAllocator.init(root_allocator);
@@ -394,6 +394,9 @@ pub fn run() void {
         _ = arena_frame.reset(.retain_capacity);
         _ = arena_system_update.reset(.retain_capacity);
 
+        const logo = logo_ent.getMut(fd.UIImage).?;
+        logo.rect.y = @as(f32, @floatFromInt(main_window.frame_buffer_size[1])) - logo_margin - logo_size;
+
         // NOTE: There's no valuable distinction between update_full and update,
         // but probably not worth looking into deeper until we get a job system.
         const done = update_full(gameloop_context);
@@ -510,14 +513,16 @@ fn update_full(gameloop_context: GameloopContext) bool {
     }
 
     // TODO: Move this to system
-    const ticks: u32 = if (has_initial_sim) 100 else 4;
+    const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+    const is_journeying = environment_info.journey_state == .journeying;
+
+    const ticks: u32 = if (is_journeying) 1 else if (has_initial_sim) 100 else 4;
     for (0..ticks) |_| {
         world_patch_mgr.tickOne();
     }
     stats.delta_time = @min(1.0 / 30.0, stats.delta_time); // anti hitch
     update(gameloop_context, stats.delta_time);
 
-    const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     gameloop_context.task_queue.findTasksToSetup(environment_info.world_time);
     gameloop_context.task_queue.setupTasks();
     gameloop_context.task_queue.calculateTasks();

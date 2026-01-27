@@ -324,7 +324,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         ent.set(fd.Health{ .value = 100000 });
         ent.addPair(fd.FSM_ENEMY, fd.FSM_ENEMY_Slime);
 
-        ent.set(fd.Enemy{ .base_scale = 10, .birth_time = 0 });
+        ent.set(fd.Enemy{ .base_scale = 20, .birth_time = 0 });
 
         const body_interface = ctx.physics_world.getBodyInterfaceMut();
 

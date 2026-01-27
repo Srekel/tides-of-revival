@@ -88,7 +88,7 @@ fn rotateTowardsTarget(
         zm.storeArr4(rot.elems(), rot_new_normalized_z);
 
         if (!locomotion.affected_by_gravity and enemy.aggressive) {
-            locomotion.speed = if (skitter) 20 / enemy.base_scale else 5 / enemy.base_scale;
+            locomotion.speed = if (skitter) 20 / enemy.base_scale else 3 + 3 / enemy.base_scale;
         } else if (!enemy.aggressive) {
             locomotion.speed = if (is_day) 1 else 2;
             locomotion.speed *= if (is_journeying) 0.5 else 1;
@@ -339,6 +339,16 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
             }
         }
 
+        // im3d.Im3d.DrawArrow(
+        //     &.{ .x = pos.x, .y = pos.y, .z = pos.z },
+        //     &.{
+        //         .x = pos.x,
+        //         .y = pos.y + 1000,
+        //         .z = pos.z,
+        //     },
+        //     .{},
+        // );
+
         if (body_interface.getMotionType(body.body_id) == .kinematic) {
             const jiggle = 0.1 + 0.1 * 1.0 / enemy.base_scale;
             scale.x = @floatCast(enemy.base_scale * (1 + math.sin(world_time * 3.5) * jiggle));
@@ -372,7 +382,7 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                 locomotion.sfx_footstep_next_time = environment_info.world_time + @as(f64, @floatCast(footstep_delay));
                 if (dist < 100) {
                     environment_info.playFootstep(pos.elems().*, enemy.base_scale);
-                } else if (dist < 500 and enemy.base_scale > 5) {
+                } else if (dist < 1000 and enemy.base_scale > 5) {
                     environment_info.playFootstep(pos.elems().*, enemy.base_scale);
                 }
             }
@@ -612,7 +622,7 @@ const SplitIfNearPlayer = struct {
 
         const player_pos_z = zm.loadArr3(player_pos.elemsConst().*);
         const self_pos_z = zm.loadArr3(self_pos.elemsConst().*);
-        if (zm.length3(player_pos_z - self_pos_z)[0] > 150) {
+        if (zm.length3(player_pos_z - self_pos_z)[0] > 250) {
             return .reschedule;
         }
 
@@ -650,7 +660,7 @@ const SplitIfNearPlayer = struct {
 
         const self: *SplitIfNearPlayer = @alignCast(@ptrCast(data));
         var enemy = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Enemy).?;
-        enemy.base_scale *= 0.8;
+        enemy.base_scale *= 0.7;
         enemy.aggressive = true;
         enemy.idling = false;
 
@@ -663,7 +673,7 @@ const SplitIfNearPlayer = struct {
         var ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.slime);
         ent.set(pos);
 
-        const base_scale = enemy.base_scale * 0.65;
+        const base_scale = enemy.base_scale * 0.6;
         const rot = fd.Rotation.initFromEulerDegrees(0, std.crypto.random.float(f32) * 360, 0);
         ent.set(fd.Scale.create(1, 1, 1));
         ent.set(rot);
