@@ -6,6 +6,8 @@
 #include "triplanar_mapping.hlsli"
 #include "FastNoiseLite.hlsli"
 
+float3 BlendMode_SoftLight(float3 base, float3 blend);
+
 // Triplanar Sampling
 // =================
 float3 TriplanarSample(Texture2D texture, SamplerState samplerState, float3 positionWS, float3 normalWS, float projectionScale) {
@@ -150,6 +152,16 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     float3 snow_arm;
     SampleTerrainLayer(snow_layer_index, Input.PositionWS.xyz, N, 32, 20, cameraDistance, snow_albedo, snow_normal, snow_arm);
 
+    // Macro-Variation on grass
+    {
+        Texture2D rustTexture = ResourceDescriptorHeap[g_rust_texture_index];
+        float rustSample1 = rustTexture.Sample(g_linear_repeat_sampler, Input.PositionWS.xz / 1439).r;
+        float rustSample2 = rustTexture.Sample(g_linear_repeat_sampler, Input.PositionWS.xz / 1873).r;
+        float rustSample3 = rustTexture.Sample(g_linear_repeat_sampler, Input.PositionWS.xz / 211).r;
+        float rustSample = saturate((rustSample1 + rustSample2 + rustSample3) / 3.0);
+        grass_albedo = lerp(grass_albedo, BlendMode_SoftLight(grass_albedo, rustSample.rrr), 0.5);
+    }
+
     // TODO(gmodarelli): Height-blend
     float3 albedo = lerp(rock_albedo, grass_albedo, slope);
     float3 arm = lerp(rock_arm, grass_arm, slope);
@@ -187,4 +199,55 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     Out.GBuffer2 = float4(arm, reflectance);
 
     RETURN(Out);
+}
+
+// ------------------------------------------------------------------------------
+//  Public Domain
+// ------------------------------------------------------------------------------
+// This is free and unencumbered software released into the public domain.
+//
+// Anyone is free to copy, modify, publish, use, compile, sell, or
+// distribute this software, either in source code form or as a compiled
+// binary, for any purpose, commercial or non-commercial, and by any
+// means.
+//
+// In jurisdictions that recognize copyright laws, the author or authors
+// of this software dedicate any and all copyright interest in the
+// software to the public domain. We make this dedication for the benefit
+// of the public at large and to the detriment of our heirs and
+// successors. We intend this dedication to be an overt act of
+// relinquishment in perpetuity of all present and future rights to this
+// software under copyright law.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+// IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+// OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+// OTHER DEALINGS IN THE SOFTWARE.
+//
+// For more information, please refer to <http://unlicense.org/>
+
+//******************************************************************************
+// Darkens or lightens the colors, depending on the blend color.
+//******************************************************************************
+float BlendMode_SoftLight(float base, float blend)
+{
+    if (blend <= 0.5)
+    {
+        return base - (1 - 2 * blend) * base * (1 - base);
+    }
+    else
+    {
+        float d = (base <= 0.25) ? ((16 * base - 12) * base + 4) * base : sqrt(base);
+        return base + (2 * blend - 1) * (d - base);
+    }
+}
+
+float3 BlendMode_SoftLight(float3 base, float3 blend)
+{
+    return float3(BlendMode_SoftLight(base.r, blend.r),
+                  BlendMode_SoftLight(base.g, blend.g),
+                  BlendMode_SoftLight(base.b, blend.b));
 }

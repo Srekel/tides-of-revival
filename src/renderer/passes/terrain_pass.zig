@@ -61,7 +61,7 @@ pub const UniformFrameData = struct {
     black_point: f32,
     white_point: f32,
     tiling_distance_max: f32,
-    _padding: f32,
+    rust_texture_index: u32,
 };
 
 pub const TerrainPass = struct {
@@ -71,6 +71,7 @@ pub const TerrainPass = struct {
     renderer: *renderer.Renderer,
     terrain_render_settings: TerrainRenderSettings,
     terrain_material: TerrainMaterial,
+    rust_texture: renderer.TextureHandle,
     terrain_material_buffers: [frames_count]renderer.BufferHandle,
 
     frame_instance_count: u32,
@@ -369,7 +370,7 @@ pub const TerrainPass = struct {
             uniform_frame_data.black_point = self.terrain_render_settings.black_point;
             uniform_frame_data.white_point = self.terrain_render_settings.white_point;
             uniform_frame_data.tiling_distance_max = self.terrain_render_settings.tiling_distance_max;
-            uniform_frame_data._padding = 42;
+            uniform_frame_data.rust_texture_index = self.renderer.getTextureBindlessIndex(self.rust_texture);
 
             const data = OpaqueSlice{
                 .data = @ptrCast(&uniform_frame_data),
@@ -473,7 +474,7 @@ pub const TerrainPass = struct {
             uniform_frame_data.black_point = self.terrain_render_settings.black_point;
             uniform_frame_data.white_point = self.terrain_render_settings.white_point;
             uniform_frame_data.tiling_distance_max = self.terrain_render_settings.tiling_distance_max;
-            uniform_frame_data._padding = 42;
+            uniform_frame_data.rust_texture_index = self.renderer.getTextureBindlessIndex(self.rust_texture);
 
             const data = OpaqueSlice{
                 .data = @ptrCast(&uniform_frame_data),
@@ -649,6 +650,8 @@ pub const TerrainPass = struct {
         self.terrain_material.layers[1] = self.loadTerrainLayer("forest_ground_01") catch unreachable;
         self.terrain_material.layers[2] = self.loadTerrainLayer("Layered_Rock_vl0fdhdo_2K") catch unreachable;
         self.terrain_material.layers[3] = self.loadTerrainLayer("snow_02") catch unreachable;
+
+        self.rust_texture = self.renderer.loadTexture("prefabs/environment/terrain/T_Overlay_Rust2.dds");
     }
 
     fn loadTerrainLayer(self: *@This(), name: []const u8) !TerrainLayer {

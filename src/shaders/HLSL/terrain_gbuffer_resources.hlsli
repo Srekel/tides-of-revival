@@ -29,7 +29,7 @@ cbuffer cbFrame : register(b1, UPDATE_FREQ_PER_FRAME)
 	float g_black_point;
 	float g_white_point;
 	float g_tiling_distance_max;
-	float _padding;
+	uint g_rust_texture_index;
 };
 
 cbuffer cbMaterial : register(b2, UPDATE_FREQ_PER_FRAME)
