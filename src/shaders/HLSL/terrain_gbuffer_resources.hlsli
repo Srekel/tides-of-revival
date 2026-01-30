@@ -28,7 +28,8 @@ cbuffer cbFrame : register(b1, UPDATE_FREQ_PER_FRAME)
 	float4 g_cam_pos;
 	float g_black_point;
 	float g_white_point;
-	float2 _padding;
+	float g_tiling_distance_max;
+	float _padding;
 };
 
 cbuffer cbMaterial : register(b2, UPDATE_FREQ_PER_FRAME)

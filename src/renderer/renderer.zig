@@ -1337,7 +1337,7 @@ pub const Renderer = struct {
             }
 
             // TODO(gmodarelli)
-            // self.terrain_pass.renderImGui();
+            self.terrain_pass.renderImGui();
             // self.dynamic_geometry_pass.renderImGui();
             self.static_geometry_pass.renderImGui();
             self.deferred_shading_pass.renderImGui();

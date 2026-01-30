@@ -33,6 +33,7 @@ const lod_3_patches_total = lod_3_patches_side * lod_3_patches_side;
 const TerrainRenderSettings = struct {
     black_point: f32,
     white_point: f32,
+    tiling_distance_max: f32,
 };
 
 const TerrainLayer = struct {
@@ -59,7 +60,8 @@ pub const UniformFrameData = struct {
     camera_position: [4]f32,
     black_point: f32,
     white_point: f32,
-    _padding: [2]f32,
+    tiling_distance_max: f32,
+    _padding: f32,
 };
 
 pub const TerrainPass = struct {
@@ -96,6 +98,7 @@ pub const TerrainPass = struct {
         self.terrain_render_settings = .{
             .black_point = 0.45,
             .white_point = 1.0,
+            .tiling_distance_max = 200.0,
         };
         self.frame_instance_count = 0;
         self.cam_pos_old = .{ -100000, 0, -100000 }; // NOTE(Anders): Assumes only one camera
@@ -365,6 +368,8 @@ pub const TerrainPass = struct {
             uniform_frame_data.camera_position = [4]f32{ render_view.position[0], render_view.position[1], render_view.position[2], 1.0 };
             uniform_frame_data.black_point = self.terrain_render_settings.black_point;
             uniform_frame_data.white_point = self.terrain_render_settings.white_point;
+            uniform_frame_data.tiling_distance_max = self.terrain_render_settings.tiling_distance_max;
+            uniform_frame_data._padding = 42;
 
             const data = OpaqueSlice{
                 .data = @ptrCast(&uniform_frame_data),
@@ -441,6 +446,12 @@ pub const TerrainPass = struct {
         }
     }
 
+    pub fn renderImGui(self: *@This()) void {
+        if (zgui.collapsingHeader("Terrain Renderer", .{})) {
+            _ = zgui.dragFloat("Tiling Distance Max", .{ .v = &self.terrain_render_settings.tiling_distance_max, .cfmt = "%.0f", .min = 10.0, .max = 1000.0, .speed = 10.0 });
+        }
+    }
+
     pub fn renderGBuffer(self: *@This(), cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView) void {
         const trazy_zone = ztracy.ZoneNC(@src(), "Gbuffer: Terrain Render Pass", 0x00_ff_ff_00);
         defer trazy_zone.End();
@@ -461,6 +472,8 @@ pub const TerrainPass = struct {
             uniform_frame_data.camera_position = [4]f32{ render_view.position[0], render_view.position[1], render_view.position[2], 1.0 };
             uniform_frame_data.black_point = self.terrain_render_settings.black_point;
             uniform_frame_data.white_point = self.terrain_render_settings.white_point;
+            uniform_frame_data.tiling_distance_max = self.terrain_render_settings.tiling_distance_max;
+            uniform_frame_data._padding = 42;
 
             const data = OpaqueSlice{
                 .data = @ptrCast(&uniform_frame_data),
