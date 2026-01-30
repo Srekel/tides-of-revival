@@ -249,7 +249,7 @@ fn patchPropUpdatePatches(it: *ecs.iter_t) callconv(.C) void {
             var rand = rand1.random();
             for (data.*) |prop| {
                 const prop_pos = fd.Position.init(prop.pos[0], prop.pos[1], prop.pos[2]);
-                const prop_scale: f32 = 0.25 + rand.float(f32) * 1.5;
+                const prop_scale: f32 = 0.15 + rand.float(f32) * 1.25;
                 const prop_rot = fd.Rotation.initFromEuler(
                     rand.float(f32) * 0.1,
                     prop.rot + std.math.pi * 0.5,

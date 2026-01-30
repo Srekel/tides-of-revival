@@ -8,8 +8,7 @@
 
 // Triplanar Sampling
 // =================
-float3 TriplanarSample(Texture2D texture, SamplerState samplerState, float3 positionWS, float3 normalWS, float projectionScale)
-{
+float3 TriplanarSample(Texture2D texture, SamplerState samplerState, float3 positionWS, float3 normalWS, float projectionScale) {
     positionWS /= projectionScale;
     float3 projectionSigns = sign(normalWS);
 
@@ -25,8 +24,7 @@ float3 TriplanarSample(Texture2D texture, SamplerState samplerState, float3 posi
     return dx * weights.x + dy * weights.y + dz * weights.z;
 }
 
-float3 TriplanarSampleNormals(Texture2D texture, SamplerState samplerState, float3 positionWS, float3 normalWS, float projectionScale)
-{
+float3 TriplanarSampleNormals(Texture2D texture, SamplerState samplerState, float3 positionWS, float3 normalWS, float projectionScale) {
     positionWS /= projectionScale;
     float3 projectionSigns = sign(normalWS);
 
@@ -87,8 +85,7 @@ float3 TriplanarSampleNormals(Texture2D texture, SamplerState samplerState, floa
 
 // Terrain Layer sampling
 // ======================
-void SampleTerrainLayer(uint layer_index, float3 P, float3 N, float triplanarScale, float farTiling, float t, out float3 albedo, out float3 normal, out float3 arm)
-{
+void SampleTerrainLayer(uint layer_index, float3 P, float3 N, float triplanarScale, float farTiling, float t, out float3 albedo, out float3 normal, out float3 arm) {
     SamplerState samplerState = g_linear_repeat_sampler;
     TerrainLayerTextureIndices terrain_layer = g_layers[layer_index];
 
@@ -104,13 +101,13 @@ void SampleTerrainLayer(uint layer_index, float3 P, float3 N, float triplanarSca
     float3 armFar = TriplanarSample(armTexture, samplerState, P / farTiling, N, triplanarScale);
     float3 normalFar = TriplanarSampleNormals(normalTexture, samplerState, P / farTiling, N, triplanarScale);
 
+    t = smoothstep(0.2, 0.8, t);
     albedo = lerp(albedoNear, albedoFar, t);
     arm = lerp(armNear, armFar, t);
     normal = lerp(normalNear, normalFar, t);
 }
 
-GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentrics)
-{
+GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentrics) {
     INIT_MAIN;
     GBufferOutput Out;
 
@@ -136,22 +133,22 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     float triplanarScale = 1;
 
     float cameraDistance = distance(g_cam_pos.xyz, P);
-    cameraDistance = saturate(cameraDistance / g_tiling_distance_max);
+    cameraDistance = saturate(cameraDistance / (g_tiling_distance_max * 10));
 
     float3 grass_albedo;
     float3 grass_normal;
     float3 grass_arm;
-    SampleTerrainLayer(grass_layer_index, Input.PositionWS.xyz, N, 8, 10, cameraDistance, grass_albedo, grass_normal, grass_arm);
+    SampleTerrainLayer(grass_layer_index, Input.PositionWS.xyz, N, 8, 20, cameraDistance, grass_albedo, grass_normal, grass_arm);
 
     float3 rock_albedo;
     float3 rock_normal;
     float3 rock_arm;
-    SampleTerrainLayer(rock_layer_index, Input.PositionWS.xyz, N, 32, 10, cameraDistance, rock_albedo, rock_normal, rock_arm);
+    SampleTerrainLayer(rock_layer_index, Input.PositionWS.xyz, N, 32, 20, cameraDistance, rock_albedo, rock_normal, rock_arm);
 
     float3 snow_albedo;
     float3 snow_normal;
     float3 snow_arm;
-    SampleTerrainLayer(snow_layer_index, Input.PositionWS.xyz, N, 32, 10, cameraDistance, snow_albedo, snow_normal, snow_arm);
+    SampleTerrainLayer(snow_layer_index, Input.PositionWS.xyz, N, 32, 20, cameraDistance, snow_albedo, snow_normal, snow_arm);
 
     // TODO(gmodarelli): Height-blend
     float3 albedo = lerp(rock_albedo, grass_albedo, slope);

@@ -14,6 +14,7 @@ const graphics = zforge.graphics;
 const zphy = @import("zphysics");
 
 const DEBUG_CAMERA_ACTIVE = false;
+const DEBUG_CAMERA_OWNS_TREES = false;
 
 pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.World, ctx: anytype) void {
     // ██╗     ██╗ ██████╗ ██╗  ██╗████████╗██╗███╗   ██╗ ██████╗
@@ -84,7 +85,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         .range = 2,
         .physics = true,
         .navmesh = true,
-        // .props = true,
+        .props = !DEBUG_CAMERA_OWNS_TREES,
     });
     player_ent.set(fd.Input{ .active = !DEBUG_CAMERA_ACTIVE, .index = 0 });
     player_ent.set(fd.Health{ .value = 100 });
@@ -133,7 +134,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
     debug_camera_ent.set(fd.Camera.create(0.1, 25000, std.math.degreesToRadians(60), DEBUG_CAMERA_ACTIVE, 0));
     debug_camera_ent.set(fd.WorldLoader{
         .range = 2,
-        .props = true,
+        .props = DEBUG_CAMERA_OWNS_TREES,
     });
     debug_camera_ent.set(fd.Input{ .active = DEBUG_CAMERA_ACTIVE, .index = 1 });
     debug_camera_ent.addPair(fd.FSM_CAM, fd.FSM_CAM_Freefly);
@@ -362,17 +363,18 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         ent.set(fd.Dynamic{});
 
         const light_ent = ecsu_world.newEntity();
+        light_ent.setName("light");
         light_ent.childOf(ent);
-        light_ent.set(fd.Position{ .x = 0, .y = 5, .z = 0 });
+        light_ent.set(fd.Position{ .x = 0, .y = 7, .z = 0 });
         light_ent.set(slime_rot);
         light_ent.set(fd.Scale.createScalar(1));
         light_ent.set(fd.Transform{});
         light_ent.set(fd.Dynamic{});
 
         light_ent.set(fd.PointLight{
-            .color = .{ .r = 0.2, .g = 1, .b = 0.3 },
-            .range = 100,
-            .intensity = 7,
+            .color = .{ .r = 0.1, .g = 0.3, .b = 1.0 },
+            .range = 220,
+            .intensity = 18,
         });
     }
 }

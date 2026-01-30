@@ -119,7 +119,7 @@ fn updateMovement(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd:
         const body_hit_opt = zphy.tryGetBody(bodies, result.hit.body_id);
         if (body_hit_opt) |body_hit| {
             const hit_normal = body_hit.getWorldSpaceSurfaceNormal(result.hit.sub_shape_id, ray.getPointOnRay(result.hit.fraction));
-            const steepness = @max(0.0, hit_normal[1] - 0.25) / 0.75;
+            const steepness = @max(0.1, hit_normal[1] - 0.25) / 0.75;
             speed *= zm.f32x4s(steepness);
 
             // im3d.Im3d.DrawCone(

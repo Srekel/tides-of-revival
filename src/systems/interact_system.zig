@@ -707,9 +707,10 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
 
             var hit_health = ecs.get_mut(ecs_world, hit_ent, fd.Health).?;
             if (hit_health.value > 0) {
-                volume *= 1.5;
+                volume *= 1.15;
                 const speed = ecs.get(ecs_world, proj_ent, fd.Speed).?.value;
-                const damage = speed;
+                const speed_remapped = @max(70, speed) / 7 - 5;
+                const damage = speed_remapped * speed_remapped;
                 std.log.info("speed {d:5.2} damage {d:5.2} health {d:5.2}\n", .{ speed, damage, hit_health.value });
                 hit_health.value -= damage;
 
@@ -720,7 +721,9 @@ fn onEventFrameCollisions(ctx: *anyopaque, event_id: u64, event_data: *const any
                 }
 
                 if (hit_health.value <= 0) {
-                    volume *= 1.5;
+                    volume *= 1.15;
+                    var environment_info = system.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+                    environment_info.playFootstep(pos, 1.5);
                     body_interface.setMotionType(hit_body, .dynamic, .activate);
                     body_interface.addImpulseAtPosition(
                         hit_body,

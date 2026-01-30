@@ -181,6 +181,10 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
         var player_pos = environment_info.player.?.getMut(fd.Position).?;
         const MIN_DIST_TO_ENEMY_SQ = 200 * 200;
 
+        if (environment_info.active_camera.?.id != environment_info.player_camera.?.id and environment_info.active_camera.?.id != environment_info.journey_camera.?.id) {
+            continue;
+        }
+
         if (environment_info.rest_state != .not) {
             environment_info.can_journey = .invalid;
             continue;
@@ -376,7 +380,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 const time_fudge = 4.0 / 24.0;
                 const duration = time_fudge * height_factor * dist_travel / walk_meter_per_second;
 
-                const min_dist: f32 = if (ray_dir[1] < 0) 100 else (100 - ray_dir[1] * 70);
+                const min_dist: f32 = if (z_fwd[1] < 0) 100 else 10 + (1 - z_fwd[1]) * 50;
                 if (dist_as_the_crow_flies < min_dist) {
                     // TODO trigger sound
                     // std.log.info("can't journey due to distance {d}", .{dist_as_the_crow_flies});
@@ -428,6 +432,12 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 }
 
                 if (slime_ent != 0 and ecs.is_alive(ctx.ecsu_world.world, slime_ent)) {
+                    const slime_enemy = ecs.get(ctx.ecsu_world.world, slime_ent, fd.Enemy).?;
+                    if (slime_enemy.aggressive) {
+                        environment_info.can_journey = .invalid;
+                        continue;
+                    }
+
                     const slime_transform_opt = ecs.get(ctx.ecsu_world.world, slime_ent, fd.Transform);
                     if (slime_transform_opt) |slime_transform| {
                         const slime_pos = slime_transform.getPos();
@@ -456,7 +466,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     // }
                 }
 
-                const duration_percent = std.math.clamp(duration / 5000, 0, 1);
+                const duration_percent = std.math.clamp(duration / 3000, 0, 1);
                 environment_info.journey_duration_percent_predict = duration_percent;
 
                 if (environment_info.can_journey == .no) {
@@ -480,7 +490,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     environment_info.journey_time_end.?,
                 });
 
-                environment_info.journey_time_multiplier = 20 + dist_travel * height_factor * 0.05;
+                environment_info.journey_time_multiplier = 20 + dist_travel * height_factor * 0.01;
                 environment_info.player_state_time = 0;
                 environment_info.journey_state = .transition_in;
                 environment_info.active_camera = environment_info.journey_camera;
@@ -557,6 +567,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 z_cam_pos = cam_pos.asZM();
 
                 // look at mama slime
+                var dist_to_slime: f32 = 10000;
                 var ms_ray_dir_z: zm.Vec = .{ 1, 0, 0, 0 };
                 if (slime_ent != 0 and ecs.is_alive(ctx.ecsu_world.world, slime_ent)) {
                     const slime_pos = ecs.get(ctx.ecsu_world.world, slime_ent, fd.Position).?;
@@ -569,6 +580,8 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                         vec_to_slime[2] * 0.99,
                         0,
                     };
+
+                    dist_to_slime = zm.length3(vec_to_slime)[0];
                     ms_ray_dir_z = zm.normalize3(zm.loadArr4(vec_to_slime));
                     const ms_ray = zphy.RRayCast{
                         .origin = ms_ray_origin,
@@ -577,6 +590,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     const query = physics_world_low.getNarrowPhaseQuery();
                     const ms_result = query.castRay(ms_ray, .{});
                     if (!ms_result.has_hit) {
+                        dist_to_slime *= 0.5;
                         const journey_cam_transform = environment_info.journey_camera.?.get(fd.Transform).?;
                         const cam_right = zm.util.getAxisX(journey_cam_transform.asZM());
                         // const cam_up = zm.util.getAxisY(journey_cam_transform.asZM());
@@ -608,7 +622,12 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     }
                 }
 
-                if (environment_info.journey_time_end.? < environment_info.world_time) {
+                if (dist_to_slime < 200) {
+                    environment_info.journey_destination = cam_pos.elems().*;
+                    environment_info.journey_time_end.? = environment_info.world_time;
+                }
+
+                if (environment_info.journey_time_end.? <= environment_info.world_time) {
                     std.log.info("done time:{d}", .{environment_info.world_time});
                     environment_info.journey_time_end = null;
                     environment_info.journey_time_multiplier = 1;

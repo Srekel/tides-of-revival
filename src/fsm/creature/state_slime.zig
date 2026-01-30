@@ -73,7 +73,7 @@ fn rotateTowardsTarget(
     const dist_to_player_sq = zm.lengthSq3(vec_to_player)[0];
     if (dist_to_player_sq > 1) {
         const age = world_time - enemy.birth_time;
-        const skitter_time = 0.1 + age * 0.005;
+        const skitter_time = if (enemy.base_scale > 4) 1 else 0.1 + age * 0.005;
         const up_z = zm.f32x4(0, 1, 0, 0);
         const skitter = !enemy.idling and dist_to_player_sq > (40 * 40) and std.math.modf(target_pos[1] + pos.y * 0.125).fpart > skitter_time;
         const dir_to_player = zm.normalize3(vec_to_player);
@@ -517,9 +517,13 @@ const SlimeDropTask = struct {
             light_ent.set(fd.Dynamic{});
 
             light_ent.set(fd.PointLight{
-                .color = .{ .r = 0.2, .g = 1, .b = 0.3 },
-                .range = 40,
-                .intensity = 8,
+                .color = .{
+                    .r = 73.0 / 255.0,
+                    .g = 191.0 / 255.0,
+                    .b = 255.0 / 255.0,
+                },
+                .range = 80,
+                .intensity = 15,
             });
 
             const task_data_die = ctx.task_queue.allocateTaskData(3600, DieTask);
@@ -604,7 +608,7 @@ const SplitIfNearPlayer = struct {
         // todo for major slime only after it's been moving towards player for some time
 
         const locomotion = ecs.get(ctx.ecsu_world.world, self.entity, fd.Locomotion).?;
-        if (enemy.base_scale <= 1.1) {
+        if (enemy.base_scale <= 1.4) {
             return .remove;
         }
 
@@ -622,7 +626,7 @@ const SplitIfNearPlayer = struct {
 
         const player_pos_z = zm.loadArr3(player_pos.elemsConst().*);
         const self_pos_z = zm.loadArr3(self_pos.elemsConst().*);
-        if (zm.length3(player_pos_z - self_pos_z)[0] > 250) {
+        if (zm.length3(player_pos_z - self_pos_z)[0] > 300) {
             return .reschedule;
         }
 
@@ -664,8 +668,15 @@ const SplitIfNearPlayer = struct {
         enemy.aggressive = true;
         enemy.idling = false;
 
+        const splitter_light_ent = ecs.lookup_child(ctx.ecsu_world.world, self.entity, "light");
+        if (splitter_light_ent != 0 and ecs.is_alive(ctx.ecsu_world.world, splitter_light_ent)) {
+            var light = ecs.get_mut(ctx.ecsu_world.world, splitter_light_ent, fd.PointLight).?;
+            light.range = 30;
+            light.intensity = 4;
+        }
+
         var health = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Health).?;
-        health.value = 20 + 50 * enemy.base_scale * enemy.base_scale;
+        health.value = 20 + 30 * enemy.base_scale * enemy.base_scale * enemy.base_scale;
 
         var pos = ecs.get(ctx.ecsu_world.world, self.entity, fd.Position).?.*;
         pos.y += 5;
@@ -673,7 +684,7 @@ const SplitIfNearPlayer = struct {
         var ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.slime);
         ent.set(pos);
 
-        const base_scale = enemy.base_scale * 0.6;
+        const base_scale = enemy.base_scale * 0.5;
         const rot = fd.Rotation.initFromEulerDegrees(0, std.crypto.random.float(f32) * 360, 0);
         ent.set(fd.Scale.create(1, 1, 1));
         ent.set(rot);
@@ -693,7 +704,7 @@ const SplitIfNearPlayer = struct {
         });
         ent.add(fd.SettlementEnemy);
         ent.addPair(fd.FSM_ENEMY, fd.FSM_ENEMY_Slime);
-        ent.set(fd.Health{ .value = 10 + 30 * base_scale * base_scale });
+        ent.set(fd.Health{ .value = 20 + 30 * base_scale * base_scale * base_scale });
 
         const body_interface = ctx.physics_world.getBodyInterfaceMut();
 
@@ -728,8 +739,8 @@ const SplitIfNearPlayer = struct {
             ctx.task_queue.enqueue(
                 SplitIfNearPlayer.id,
                 .{
-                    .time = ctx.time.now + enemy.base_scale * enemy.base_scale + std.crypto.random.float(f64) * 2,
-                    .loop_type = .{ .loop = enemy.base_scale * 0.5 + std.crypto.random.float(f64) },
+                    .time = ctx.time.now + 1 + enemy.base_scale + std.crypto.random.float(f64) * 2,
+                    .loop_type = .{ .loop = 1 + enemy.base_scale * 0.2 + std.crypto.random.float(f64) },
                 },
                 std.mem.asBytes(task_data),
             );
@@ -744,8 +755,12 @@ const SplitIfNearPlayer = struct {
         light_ent.set(fd.Dynamic{});
 
         light_ent.set(fd.PointLight{
-            .color = .{ .r = 0.2, .g = 1, .b = 0.3 },
-            .range = 20,
+            .color = .{
+                .r = 0.2,
+                .g = 0.4,
+                .b = 1.0,
+            },
+            .range = 30,
             .intensity = 4,
         });
     }
@@ -789,7 +804,11 @@ const EmsmallenTask = struct {
 
         const self: *EmsmallenTask = @alignCast(@ptrCast(data));
         var light = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.PointLight).?;
-        light.intensity *= 0.96;
+        // light.range *= 0.99;
+        light.intensity *= 0.99;
+        // light.color.r = @min(0.5, light.color.r * 1.02);
+        // light.color.g = @min(0.5, light.color.g * 1.01);
+        // light.color.b *= 0.99;
         var scale = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Scale).?;
         scale.x *= 0.96;
         scale.z *= 0.96;

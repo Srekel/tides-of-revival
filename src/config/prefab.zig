@@ -477,8 +477,8 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
 
         light_ent.set(fd.PointLight{
             .color = .{ .r = 1.0, .g = 0.8, .b = 0.6 },
-            .range = 10,
-            .intensity = 5,
+            .range = 7,
+            .intensity = 4,
         });
     }
 

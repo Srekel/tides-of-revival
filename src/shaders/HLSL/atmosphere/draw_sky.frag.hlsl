@@ -5,8 +5,7 @@
 #include "draw_sky_resources.hlsli"
 #include "../utils.hlsli"
 
-float RayTraceSphere(float3 origin, float3 direction, float3 position, float radius, out float3 normal)
-{
+float RayTraceSphere(float3 origin, float3 direction, float3 position, float radius, out float3 normal) {
     float3 rc = origin - position;
     float c = dot(rc, rc) - (radius * radius);
     float b = dot(direction, rc);
@@ -16,39 +15,36 @@ float RayTraceSphere(float3 origin, float3 direction, float3 position, float rad
 
     normal = normalize(-position + (origin + direction * t));
 
-    if (st > 0.0f)
-    {
+    if (st > 0.0f) {
         return 1.0f;
     }
 
     return 0.0f;
 }
 
-float3 RotateAroundY(float3 direction, float radians)
-{
+float3 RotateAroundY(float3 direction, float radians) {
     float sina, cosa;
     sincos(radians, sina, cosa);
     float2x2 m = float2x2(cosa, -sina, sina, cosa);
     return float3(mul(m, direction.xz), direction.y).xzy;
 }
 
-float3 RotateAboutAxis(float3 direction, float3 axis, float rotation)
-{
+float3 RotateAboutAxis(float3 direction, float3 axis, float rotation) {
     float s = sin(rotation);
     float c = cos(rotation);
     float one_minus_c = 1.0 - c;
 
     axis = normalize(axis);
-    float3x3 rot_mat =
-        {one_minus_c * axis.x * axis.x + c, one_minus_c * axis.x * axis.y - axis.z * s, one_minus_c * axis.z * axis.x + axis.y * s,
-         one_minus_c * axis.x * axis.y + axis.z * s, one_minus_c * axis.y * axis.y + c, one_minus_c * axis.y * axis.z - axis.x * s,
-         one_minus_c * axis.z * axis.x - axis.y * s, one_minus_c * axis.y * axis.z + axis.x * s, one_minus_c * axis.z * axis.z + c};
+    float3x3 rot_mat = {
+        one_minus_c * axis.x * axis.x + c, one_minus_c * axis.x * axis.y - axis.z * s, one_minus_c * axis.z * axis.x + axis.y * s,
+        one_minus_c * axis.x * axis.y + axis.z * s, one_minus_c * axis.y * axis.y + c, one_minus_c * axis.y * axis.z - axis.x * s,
+        one_minus_c * axis.z * axis.x - axis.y * s, one_minus_c * axis.y * axis.z + axis.x * s, one_minus_c * axis.z * axis.z + c
+    };
 
     return mul(rot_mat, direction);
 }
 
-float2 SampleSphericalMap(float3 v)
-{
+float2 SampleSphericalMap(float3 v) {
     const float2 invAtan = float2(0.1591, 0.3183);
     float2 uv = float2(atan2(v.z, v.x), asin(v.y));
     uv *= invAtan;
@@ -56,10 +52,9 @@ float2 SampleSphericalMap(float3 v)
     return uv;
 }
 
-float4 PS_MAIN(VSOutput Input) : SV_Target
-{
+float4 PS_MAIN(VSOutput Input) : SV_Target {
     float3 uv = normalize(Input.UV);
-    float3 starfield_uv = RotateAboutAxis(uv, float3(1, 0, 0), PI * 0.25f);
+    float3 starfield_uv = RotateAboutAxis(uv, float3(1, 0, 0), 30.0f * PI / 180.0f);
     starfield_uv = RotateAboutAxis(starfield_uv, float3(0, 1, 0), g_time_of_day_01 * PI * 2.0f);
 
     // Starfield
@@ -73,8 +68,7 @@ float4 PS_MAIN(VSOutput Input) : SV_Target
 
     float3 sun = 0;
     float3 sun_normal = 0;
-    if (RayTraceSphere(float3(0, 0, 0), uv, normalize(sun_direction), 0.075, sun_normal).r > 0)
-    {
+    if (RayTraceSphere(float3(0, 0, 0), uv, normalize(sun_direction), 0.075, sun_normal).r > 0) {
         sun = sRGBToLinear_Float3(sun_color) * sun_intensity;
         starfield = 0;
     }
@@ -84,8 +78,7 @@ float4 PS_MAIN(VSOutput Input) : SV_Target
 
     float3 moon = 0;
     float3 moon_normal = 0;
-    if (RayTraceSphere(float3(0, 0, 0), uv, normalize(moon_direction), 0.1, moon_normal).r > 0)
-    {
+    if (RayTraceSphere(float3(0, 0, 0), uv, normalize(moon_direction), 0.1, moon_normal).r > 0) {
         moon_normal = RotateAroundY(moon_normal, frac(g_time * 0.00025) * PI * 2.0f);
         float2 moon_uv = SampleSphericalMap(moon_normal);
         // float4 moon_sample = moon_texture.Sample(g_linear_clamp_edge_sampler, (Input.MoonPosition.xy * 4) + float2(0.5, 0.5));

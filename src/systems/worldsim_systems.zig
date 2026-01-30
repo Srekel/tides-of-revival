@@ -72,14 +72,18 @@ fn settlementGrowth(it: *ecs.iter_t) callconv(.C) void {
             break :blk false;
         };
 
-        if (has_nearby_enemy) {
+        if (has_nearby_enemy and settlement.level >= 30) {
             settlement.safety = environment_info.world_time + 100;
             continue;
         }
 
         if (settlement.safety < environment_info.world_time) {
             settlement.level += 1;
-            settlement.safety = environment_info.world_time + 100;
+            if (has_nearby_enemy) {
+                settlement.safety = environment_info.world_time + 1500;
+            } else {
+                settlement.safety = environment_info.world_time + 20;
+            }
 
             const vars = ecs.script_vars_init(ctx.ecsu_world.world);
             defer ecs.script_vars_fini(vars);
