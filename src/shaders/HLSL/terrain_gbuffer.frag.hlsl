@@ -10,7 +10,8 @@ float3 BlendMode_SoftLight(float3 base, float3 blend);
 
 // Triplanar Sampling
 // =================
-float3 TriplanarSample(Texture2D texture, SamplerState samplerState, float3 positionWS, float3 normalWS, float projectionScale) {
+float3 TriplanarSample(Texture2D texture, SamplerState samplerState, float3 positionWS, float3 normalWS, float projectionScale)
+{
     positionWS /= projectionScale;
     float3 projectionSigns = sign(normalWS);
 
@@ -26,7 +27,8 @@ float3 TriplanarSample(Texture2D texture, SamplerState samplerState, float3 posi
     return dx * weights.x + dy * weights.y + dz * weights.z;
 }
 
-float3 TriplanarSampleNormals(Texture2D texture, SamplerState samplerState, float3 positionWS, float3 normalWS, float projectionScale) {
+float3 TriplanarSampleNormals(Texture2D texture, SamplerState samplerState, float3 positionWS, float3 normalWS, float projectionScale)
+{
     positionWS /= projectionScale;
     float3 projectionSigns = sign(normalWS);
 
@@ -87,7 +89,8 @@ float3 TriplanarSampleNormals(Texture2D texture, SamplerState samplerState, floa
 
 // Terrain Layer sampling
 // ======================
-void SampleTerrainLayer(uint layer_index, float3 P, float3 N, float triplanarScale, float farTiling, float t, out float3 albedo, out float3 normal, out float3 arm) {
+void SampleTerrainLayer(uint layer_index, float3 P, float3 N, float triplanarScale, float farTiling, float t, out float3 albedo, out float3 normal, out float3 arm)
+{
     SamplerState samplerState = g_linear_repeat_sampler;
     TerrainLayerTextureIndices terrain_layer = g_layers[layer_index];
 
@@ -109,7 +112,8 @@ void SampleTerrainLayer(uint layer_index, float3 P, float3 N, float triplanarSca
     normal = lerp(normalNear, normalFar, t);
 }
 
-GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentrics) {
+GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentrics)
+{
     INIT_MAIN;
     GBufferOutput Out;
 
@@ -128,9 +132,9 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     float slope = abs(N.y);
     slope = smoothstep(g_black_point, g_white_point, slope);
 
-    uint grass_layer_index = 1;
-    uint rock_layer_index = 2;
-    uint snow_layer_index = 3;
+    uint grass_layer_index = 0;
+    uint rock_layer_index = 1;
+    uint snow_layer_index = 2;
 
     float triplanarScale = 1;
 

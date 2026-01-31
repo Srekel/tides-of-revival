@@ -51,7 +51,7 @@ const TerrainLayerMaterial = extern struct {
 };
 
 const TerrainMaterial = struct {
-    layers: [4]TerrainLayer,
+    layers: [3]TerrainLayer,
 };
 
 pub const UniformFrameData = struct {
@@ -488,7 +488,7 @@ pub const TerrainPass = struct {
         {
             const trazy_zone_2 = ztracy.ZoneNC(@src(), "material buffer", 0x00_ff_ff_00);
             defer trazy_zone_2.End();
-            var terrain_material_data: [4]TerrainLayerMaterial = undefined;
+            var terrain_material_data: [3]TerrainLayerMaterial = undefined;
             for (self.terrain_material.layers, 0..) |layer, i| {
                 terrain_material_data[i] = .{
                     .diffuse_index = self.renderer.getTextureBindlessIndex(layer.diffuse),
@@ -646,10 +646,9 @@ pub const TerrainPass = struct {
     }
 
     fn loadTerrainMaterial(self: *@This()) !void {
-        self.terrain_material.layers[0] = self.loadTerrainLayer("dry_ground_rocks") catch unreachable;
-        self.terrain_material.layers[1] = self.loadTerrainLayer("forest_ground_01") catch unreachable;
-        self.terrain_material.layers[2] = self.loadTerrainLayer("Layered_Rock_vl0fdhdo_2K") catch unreachable;
-        self.terrain_material.layers[3] = self.loadTerrainLayer("snow_02") catch unreachable;
+        self.terrain_material.layers[0] = self.loadTerrainLayer("forest_ground_01") catch unreachable;
+        self.terrain_material.layers[1] = self.loadTerrainLayer("T_Rock_Cliff_A_2x2_2K") catch unreachable;
+        self.terrain_material.layers[2] = self.loadTerrainLayer("snow_02") catch unreachable;
 
         self.rust_texture = self.renderer.loadTexture("prefabs/environment/terrain/T_Overlay_Rust2.dds");
     }

@@ -48,14 +48,12 @@ const SystemUpdateContext = struct {
         loaders: [1]WorldLoaderData = .{.{}},
         requester_id: world_patch_manager.RequesterId,
         // comp_query_loader: ecsu.Query,
-        medium_house_prefab: ecsu.Entity,
         tree_prefab: ecsu.Entity,
         cube_prefab: ecsu.Entity,
     },
 };
 
 pub fn create(create_ctx: SystemCreateCtx) void {
-    const medium_house_prefab = create_ctx.prefab_mgr.getPrefab(config.prefab.medium_house_id).?;
     const tree_prefab = create_ctx.prefab_mgr.getPrefab(config.prefab.beech_tree_04_id).?;
     const cube_prefab = create_ctx.prefab_mgr.getPrefab(config.prefab.cube_id).?;
 
@@ -64,7 +62,6 @@ pub fn create(create_ctx: SystemCreateCtx) void {
     update_ctx.*.state = .{
         .requester_id = create_ctx.world_patch_mgr.registerRequester(IdLocal.init("props")),
         .patches = std.ArrayList(Patch).initCapacity(create_ctx.heap_allocator, 4 * 4 * 32 * 32) catch unreachable,
-        .medium_house_prefab = medium_house_prefab,
         .tree_prefab = tree_prefab,
         .cube_prefab = cube_prefab,
     };
@@ -243,7 +240,6 @@ fn patchPropUpdatePatches(it: *ecs.iter_t) callconv(.C) void {
 
             const tree_id = IdLocal.init("tree");
             const wall_id = IdLocal.init("wall");
-            const house_id = IdLocal.init("house");
             const city_id = IdLocal.init("city");
             var rand1 = std.Random.DefaultPrng.init(data.len);
             var rand = rand1.random();
@@ -265,14 +261,7 @@ fn patchPropUpdatePatches(it: *ecs.iter_t) callconv(.C) void {
                 zm.storeMat43(prop_transform.matrix[0..], z_prop_srt_matrix);
                 prop_transform.updateInverseMatrix();
 
-                if (prop.id.hash == house_id.hash) {
-                    // var house_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, system.state.medium_house_prefab);
-                    // house_ent.set(prop_transform);
-                    // house_ent.set(prop_pos);
-                    // house_ent.set(prop_rot);
-                    // house_ent.set(fd.Scale.createScalar(prop_scale));
-                    // patch.entities.append(house_ent.id) catch unreachable;
-                } else if (prop.id.hash == tree_id.hash) {
+                if (prop.id.hash == tree_id.hash) {
                     var fir_tree_ent = system.prefab_mgr.instantiatePrefab(system.ecsu_world, system.state.tree_prefab);
                     fir_tree_ent.set(prop_transform);
                     fir_tree_ent.set(prop_pos);

@@ -8,10 +8,7 @@ const IdLocal = core.IdLocal;
 const ID = @import("../core/core.zig").ID;
 
 pub var bow: ecsu.Entity = undefined;
-pub var color_calibrator: ecsu.Entity = undefined;
 pub var default_cube: ecsu.Entity = undefined;
-pub var giant_ant: ecsu.Entity = undefined;
-pub var matball: ecsu.Entity = undefined;
 pub var player: ecsu.Entity = undefined;
 pub var slime: ecsu.Entity = undefined;
 pub var slime_trail: ecsu.Entity = undefined;
@@ -21,10 +18,6 @@ pub var lamppost: ecsu.Entity = undefined;
 pub const arrow_id = ID("prefab_arrow");
 pub const beech_tree_04_id = ID("beech_tree_04");
 pub const bow_id = ID("prefab_bow");
-pub const color_calibrator_id = ID("color_calibrator");
-pub const giant_ant_id = ID("prefab_giant_ant");
-pub const matball_id = ID("prefab_matball");
-pub const medium_house_id = ID("prefab_medium_house");
 pub const player_id = ID("prefab_player");
 pub const skybox_id = ID("prefab_skybox");
 pub const slime_id = ID("prefab_slime");
@@ -54,7 +47,6 @@ pub const prefabs = [_]IdLocal{
     bow_id,
     brazier_1_id,
     brazier_2_id,
-    giant_ant_id,
     house_3x5_id,
     palisade_400x300_a_id,
     palisade_400x300_b_id,
@@ -97,70 +89,6 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
                 for (0..lod_group.lods[i].materials_count) |material_index| {
                     lod_group.lods[i].materials[material_index] = default_material_id;
                 }
-            }
-        }
-    }
-
-    {
-        var material = renderer.UberShaderMaterialData.init();
-        material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
-        material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
-        material.albedo = prefab_mgr.rctx.loadTexture("textures/debug/round_aluminum_panel_albedo.dds");
-        material.arm = prefab_mgr.rctx.loadTexture("textures/debug/round_aluminum_panel_arm.dds");
-        material.normal = prefab_mgr.rctx.loadTexture("textures/debug/round_aluminum_panel_normal.dds");
-        const material_id = ID("round_aluminum");
-        prefab_mgr.rctx.loadMaterial(material_id, material) catch unreachable;
-
-        matball = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/primitives/matball", matball_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
-        matball.setOverride(fd.Dynamic{});
-
-        const lod_group_component = matball.getMut(fd.LodGroup);
-        if (lod_group_component) |lod_group| {
-            for (0..lod_group.lod_count) |i| {
-                std.debug.assert(lod_group.lods[i].materials_count == 1);
-                lod_group.lods[i].materials[0] = material_id;
-            }
-        }
-    }
-
-    {
-        var material = renderer.UberShaderMaterialData.init();
-        material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
-        material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
-        material.albedo = prefab_mgr.rctx.loadTexture("prefabs/props/color_calibrator/color_checker_albedo.dds");
-        const material_id = ID("color_checker");
-        prefab_mgr.rctx.loadMaterial(material_id, material) catch unreachable;
-
-        color_calibrator = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/props/color_calibrator/color_calibrator", color_calibrator_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
-        color_calibrator.setOverride(fd.Dynamic{});
-
-        const lod_group_component = color_calibrator.getMut(fd.LodGroup);
-        if (lod_group_component) |lod_group| {
-            for (0..lod_group.lod_count) |i| {
-                std.debug.assert(lod_group.lods[i].materials_count == 1);
-                lod_group.lods[i].materials[0] = material_id;
-            }
-        }
-    }
-
-    {
-        var material = renderer.UberShaderMaterialData.init();
-        material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
-        material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
-        material.albedo = prefab_mgr.rctx.loadTexture("prefabs/creatures/giant_ant/giant_ant_albedo.dds");
-        material.arm = prefab_mgr.rctx.loadTexture("prefabs/creatures/giant_ant/giant_ant_arm.dds");
-        material.normal = prefab_mgr.rctx.loadTexture("prefabs/creatures/giant_ant/giant_ant_normal.dds");
-        const material_id = ID("giant_ant");
-        prefab_mgr.rctx.loadMaterial(material_id, material) catch unreachable;
-
-        giant_ant = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/creatures/giant_ant/giant_ant", giant_ant_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
-        giant_ant.setOverride(fd.Dynamic{});
-
-        const lod_group_component = giant_ant.getMut(fd.LodGroup);
-        if (lod_group_component) |lod_group| {
-            for (0..lod_group.lod_count) |i| {
-                std.debug.assert(lod_group.lods[i].materials_count == 1);
-                lod_group.lods[i].materials[0] = material_id;
             }
         }
     }
@@ -258,15 +186,22 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
     var slime_body_material = renderer.UberShaderMaterialData.initNoTexture(fd.ColorRGB.init(1.0, 1.0, 1.0), 0.3, 0.0);
     slime_body_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
     slime_body_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
-    slime_body_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/creatures/slime/slime_body_albedo.dds");
+    slime_body_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/creatures/slime/slime_body_diffuse.dds");
     prefab_mgr.rctx.loadMaterial(slime_body_material_id, slime_body_material) catch unreachable;
 
     const slime_eyes_material_id = ID("slime_eyes");
     var slime_eyes_material = renderer.UberShaderMaterialData.initNoTexture(fd.ColorRGB.init(1.0, 1.0, 1.0), 0.3, 0.0);
     slime_eyes_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
     slime_eyes_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
-    slime_eyes_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/creatures/slime/slime_eyes_albedo.dds");
+    slime_eyes_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/creatures/slime/slime_eyes_diffuse.dds");
     prefab_mgr.rctx.loadMaterial(slime_eyes_material_id, slime_eyes_material) catch unreachable;
+
+    const slime_trail_material_id = ID("slime_trail");
+    var slime_trail_material = renderer.UberShaderMaterialData.initNoTexture(fd.ColorRGB.init(1.0, 1.0, 1.0), 0.3, 0.0);
+    slime_trail_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
+    slime_trail_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
+    slime_trail_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/creatures/slime/slime_trail_diffuse.dds");
+    prefab_mgr.rctx.loadMaterial(slime_trail_material_id, slime_trail_material) catch unreachable;
 
     {
         slime = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/creatures/slime/slime", slime_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
@@ -290,58 +225,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         if (lod_group_component) |lod_group| {
             for (0..lod_group.lod_count) |i| {
                 std.debug.assert(lod_group.lods[i].materials_count == 1);
-                lod_group.lods[i].materials[0] = slime_body_material_id;
-            }
-        }
-    }
-
-    {
-        var roof_material = renderer.UberShaderMaterialData.init();
-        roof_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
-        roof_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
-        roof_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_roof_albedo.dds");
-        roof_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_roof_arm.dds");
-        roof_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_roof_normal.dds");
-        const roof_material_id = ID("medium_house_roof");
-        prefab_mgr.rctx.loadMaterial(roof_material_id, roof_material) catch unreachable;
-
-        var wood_material = renderer.UberShaderMaterialData.init();
-        wood_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
-        wood_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
-        wood_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_wood_albedo.dds");
-        wood_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_wood_arm.dds");
-        wood_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_wood_normal.dds");
-        const wood_material_id = ID("medium_house_wood");
-        prefab_mgr.rctx.loadMaterial(wood_material_id, wood_material) catch unreachable;
-
-        var plaster_material = renderer.UberShaderMaterialData.init();
-        plaster_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
-        plaster_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
-        plaster_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_plaster_albedo.dds");
-        plaster_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_plaster_arm.dds");
-        plaster_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_plaster_normal.dds");
-        const plaster_material_id = ID("medium_house_plaster");
-        prefab_mgr.rctx.loadMaterial(plaster_material_id, plaster_material) catch unreachable;
-
-        var stone_material = renderer.UberShaderMaterialData.init();
-        stone_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
-        stone_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
-        stone_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_stone_albedo.dds");
-        stone_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_stone_arm.dds");
-        stone_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_stone_normal.dds");
-        const stone_material_id = ID("medium_house_stone");
-        prefab_mgr.rctx.loadMaterial(stone_material_id, stone_material) catch unreachable;
-
-        var medium_house = prefab_mgr.createHierarchicalStaticMeshPrefab("prefabs/buildings/medium_house/medium_house", medium_house_id, pos_uv0_nor_tan_col_vertex_layout, ecsu_world);
-        const lod_group_component = medium_house.getMut(fd.LodGroup);
-        if (lod_group_component) |lod_group| {
-            for (0..lod_group.lod_count) |i| {
-                std.debug.assert(lod_group.lods[i].materials_count == 4);
-
-                lod_group.lods[i].materials[0] = roof_material_id;
-                lod_group.lods[i].materials[1] = wood_material_id;
-                lod_group.lods[i].materials[2] = plaster_material_id;
-                lod_group.lods[i].materials[3] = stone_material_id;
+                lod_group.lods[i].materials[0] = slime_trail_material_id;
             }
         }
     }
