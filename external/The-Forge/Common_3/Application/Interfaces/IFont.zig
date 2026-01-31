@@ -4,6 +4,7 @@ const std = @import("std");
 
 // TIDES: BEGIN MANUAL CHANGES
 const graphics = @import("../../Graphics/Interfaces/IGraphics.zig");
+const Cmd = graphics.Cmd;
 
 const CameraMatrix = anyopaque;
 const ReloadType = graphics.ReloadType;
@@ -79,7 +80,7 @@ extern fn _1_unloadFontSystem_(unloadType: ReloadType) void;
 /// To be called at application unload time by the App Layer
 pub const unloadFontSystem = _1_unloadFontSystem_;
 
-extern fn _1_cmdDrawTextWithFont_(pCmd: [*c]Cmd, screenCoordsInPx: float2, pDrawDesc: [*c]const FontDrawDesc) void;
+extern fn _1_cmdDrawTextWithFont_(pCmd: [*c]Cmd, screenCoordsXInPx: f32, screenCoordsYInPx: f32, pDrawDesc: [*c]const FontDrawDesc) void;
 /// Renders UI-style text to the screen using a loaded font w/ The Forge
 /// This function will assert if Font Rendering has not been initialized
 pub const cmdDrawTextWithFont = _1_cmdDrawTextWithFont_;
@@ -109,13 +110,12 @@ extern fn _1_fntExpandAtlas_(additionalSize: int2) void;
 /// Expands the font atlas size by given size without clearing the contents
 pub const fntExpandAtlas = _1_fntExpandAtlas_;
 
-extern fn _1_fntMeasureFontText_(pText: [*c]const u8, pDrawDesc: [*c]const FontDrawDesc) float2;
+extern fn _1_fntMeasureFontText_(pText: [*c]const u8, pDrawDesc: [*c]const FontDrawDesc, x: *f32, y: *f32) void;
 /// Returns the bounds of text that would be drawn to supplied specification
 pub const fntMeasureFontText = _1_fntMeasureFontText_;
 
 // opaques
 
 const Renderer = anyopaque;
-const Cmd = anyopaque;
 const RenderTarget = anyopaque;
 const PipelineCache = anyopaque;

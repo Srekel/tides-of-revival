@@ -8,9 +8,9 @@ extern "C" bool _1_initFontSystem_(FontSystemDesc* pDesc) { return ::initFontSys
 extern "C" void _1_exitFontSystem_() { ::exitFontSystem(); }
 extern "C" void _1_loadFontSystem_(const FontSystemLoadDesc* pDesc) { ::loadFontSystem(pDesc); }
 extern "C" void _1_unloadFontSystem_(ReloadType unloadType) { ::unloadFontSystem(unloadType); }
-extern "C" void _1_cmdDrawTextWithFont_(Cmd* pCmd, float2 screenCoordsInPx, const FontDrawDesc* pDrawDesc)
+extern "C" void _1_cmdDrawTextWithFont_(Cmd* pCmd, float screenCoordsXInPx, float screenCoordsYInPx, const FontDrawDesc* pDrawDesc)
 {
-    ::cmdDrawTextWithFont(pCmd, screenCoordsInPx, pDrawDesc);
+    ::cmdDrawTextWithFont(pCmd, float2(screenCoordsXInPx, screenCoordsYInPx), pDrawDesc);
 }
 extern "C" void _1_cmdDrawWorldSpaceTextWithFont_(Cmd* pCmd, const mat4* pMatWorld, const CameraMatrix* pMatProjView,
                                                   const FontDrawDesc* pDrawDesc)
@@ -22,7 +22,9 @@ extern "C" void _1_fntDefineFonts_(const FontDesc* pDescs, uint32_t count, uint3
 extern "C" int2 _1_fntGetFontAtlasSize_() { return ::fntGetFontAtlasSize(); }
 extern "C" void _1_fntResetFontAtlas_(int2 newAtlasSize) { ::fntResetFontAtlas(newAtlasSize); }
 extern "C" void _1_fntExpandAtlas_(int2 additionalSize) { ::fntExpandAtlas(additionalSize); }
-extern "C" float2 _1_fntMeasureFontText_(const char* pText, const FontDrawDesc* pDrawDesc)
+extern "C" void _1_fntMeasureFontText_(const char* pText, const FontDrawDesc* pDrawDesc, float* x, float* y)
 {
-    return ::fntMeasureFontText(pText, pDrawDesc);
+    float2 result = ::fntMeasureFontText(pText, pDrawDesc);
+    *x = result.x;
+    *y = result.y;
 }

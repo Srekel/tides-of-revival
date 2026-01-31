@@ -60,6 +60,9 @@ pub const SystemUpdateContext = struct {
         query_ui_images: *ecs.query_t,
         ui_images: std.ArrayList(renderer_types.UiImage),
 
+        query_ui_texts: *ecs.query_t,
+        ui_texts: std.ArrayList(renderer_types.UiText),
+
         query_scripts: *ecs.query_t,
 
         added_static_entities: std.ArrayList(renderer_types.RenderableEntity) = undefined,
@@ -114,6 +117,13 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 1),
     }) catch unreachable;
 
+    const query_ui_texts = ecs.query_init(ecsu_world.world, &.{
+        .entity = ecs.new_entity(ecsu_world.world, "query_ui_texts"),
+        .terms = [_]ecs.term_t{
+            .{ .id = ecs.id(fd.UIText), .inout = .In },
+        } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 1),
+    }) catch unreachable;
+
     const query_scripts = ecs.query_init(ecsu_world.world, &.{
         .entity = ecs.new_entity(ecsu_world.world, "query_scripts"),
         .terms = [_]ecs.term_t{
@@ -135,7 +145,9 @@ pub fn create(create_ctx: SystemCreateCtx) void {
         .query_dynamic_entities = query_dynamic_entities,
         .dynamic_entities = std.ArrayList(renderer_types.DynamicEntity).init(pass_allocator),
         .query_ui_images = query_ui_images,
+        .query_ui_texts = query_ui_texts,
         .ui_images = std.ArrayList(renderer_types.UiImage).init(pass_allocator),
+        .ui_texts = std.ArrayList(renderer_types.UiText).init(pass_allocator),
         .added_static_entities = std.ArrayList(renderer_types.RenderableEntity).init(pass_allocator),
         .removed_static_entities = std.ArrayList(renderer_types.RenderableEntityId).init(pass_allocator),
     };
@@ -446,6 +458,23 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
         }
 
         update_desc.ui_images = &system.state.ui_images;
+    }
+
+    // Find all UI Texts
+    {
+        system.state.ui_texts.clearRetainingCapacity();
+
+        var iter = ecs.query_iter(system.ecsu_world.world, system.state.query_ui_texts);
+        while (ecs.query_next(&iter)) {
+            const ui_texts = ecs.field(&iter, fd.UIText, 0).?;
+            for (ui_texts) |ui_text| {
+                var renderer_ui_text: renderer_types.UiText = undefined;
+                util.memcpy(&renderer_ui_text, &ui_text, @sizeOf(renderer_types.UiText), .{});
+                system.state.ui_texts.append(renderer_ui_text) catch unreachable;
+            }
+        }
+
+        update_desc.ui_texts = &system.state.ui_texts;
     }
 
     system.renderer.update(update_desc);

@@ -102,6 +102,7 @@ pub const Renderer = struct {
     added_static_entities: std.ArrayList(renderer_types.RenderableEntity) = undefined,
     removed_static_entities: std.ArrayList(renderer_types.RenderableEntityId) = undefined,
     ui_images: std.ArrayList(renderer_types.UiImage) = undefined,
+    ui_texts: std.ArrayList(renderer_types.UiText) = undefined,
 
     // GPU Bindless Buffers
     // ====================
@@ -172,7 +173,7 @@ pub const Renderer = struct {
     luminance: TextureHandle = undefined,
 
     vertex_layouts_map: VertexLayoutHashMap = undefined,
-    roboto_font_id: u32 = 0,
+    davidlibre_font_id: u32 = 0,
 
     legacy_mesh_pool: LegacyMeshPool = undefined,
     texture_pool: TexturePool = undefined,
@@ -264,10 +265,10 @@ pub const Renderer = struct {
 
         // Load Roboto Font
         const font_desc = font.FontDesc{
-            .pFontName = "Roboto",
-            .pFontPath = "fonts/Roboto-Medium.ttf",
+            .pFontName = "DavidLibre",
+            .pFontPath = "fonts/DavidLibre-Bold.ttf",
         };
-        font.fntDefineFonts(&font_desc, 1, &self.roboto_font_id);
+        font.fntDefineFonts(&font_desc, 1, &self.davidlibre_font_id);
 
         var font_system_desc = font.FontSystemDesc{};
         font_system_desc.pRenderer = self.renderer;
@@ -481,6 +482,7 @@ pub const Renderer = struct {
         self.added_static_entities = std.ArrayList(renderer_types.RenderableEntity).init(self.allocator);
         self.removed_static_entities = std.ArrayList(renderer_types.RenderableEntityId).init(self.allocator);
         self.ui_images = std.ArrayList(renderer_types.UiImage).init(self.allocator);
+        self.ui_texts = std.ArrayList(renderer_types.UiText).init(self.allocator);
     }
 
     pub fn exit(self: *Renderer) void {
@@ -490,6 +492,7 @@ pub const Renderer = struct {
         self.removed_static_entities.deinit();
         self.dynamic_entities.deinit();
         self.ui_images.deinit();
+        self.ui_texts.deinit();
 
         self.im3d_pass.destroy();
         self.ui_pass.destroy();
@@ -773,6 +776,9 @@ pub const Renderer = struct {
 
         self.ui_images.clearRetainingCapacity();
         self.ui_images.appendSlice(update_desc.ui_images.items) catch unreachable;
+
+        self.ui_texts.clearRetainingCapacity();
+        self.ui_texts.appendSlice(update_desc.ui_texts.items) catch unreachable;
     }
 
     pub fn draw(self: *Renderer) void {

@@ -4,6 +4,7 @@ const IdLocal = @import("../../core/core.zig").IdLocal;
 const renderer = @import("../renderer.zig");
 const renderer_types = @import("../types.zig");
 const zforge = @import("zforge");
+const font = zforge.font;
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
 const OpaqueSlice = util.OpaqueSlice;
@@ -124,6 +125,50 @@ pub const UIPass = struct {
         graphics.cmdBindDescriptorSet(cmd_list, 0, self.descriptor_set);
         graphics.cmdBindIndexBuffer(cmd_list, index_buffer, @intCast(graphics.IndexType.INDEX_TYPE_UINT16.bits), 0);
         graphics.cmdDrawIndexedInstanced(cmd_list, 6, 0, @intCast(self.instances.items.len), 0, 0);
+
+        // Render all texts
+        {
+            for (self.renderer.ui_texts.items) |ui_text| {
+                if (ui_text.shadow) {
+                    const r: u32 = @as(u32, @intFromFloat(ui_text.shadow_color[0] * 255.0)) <<  0;
+                    const g: u32 = @as(u32, @intFromFloat(ui_text.shadow_color[1] * 255.0)) <<  8;
+                    const b: u32 = @as(u32, @intFromFloat(ui_text.shadow_color[2] * 255.0)) << 16;
+                    const a: u32 = @as(u32, @intFromFloat(ui_text.shadow_color[3] * 255.0)) << 24;
+                    const color: u32 = r | g | b | a;
+
+                    var draw_font_desc = font.FontDrawDesc{};
+                    draw_font_desc.mFontID = self.renderer.davidlibre_font_id;
+                    draw_font_desc.mFontSize = ui_text.font_size;
+                    draw_font_desc.mFontColor = color;
+                    draw_font_desc.mFontBlur = ui_text.shadow_blur;
+                    draw_font_desc.pText = ui_text.text.ptr;
+
+                    var text_size: [2]f32 = .{0, 0};
+                    font.fntMeasureFontText(ui_text.text.ptr, &draw_font_desc, &text_size[0], &text_size[1]);
+
+                    font.cmdDrawTextWithFont(cmd_list, ui_text.left + ui_text.shadow_offset_x, ui_text.bottom + ui_text.shadow_offset_y, &draw_font_desc);
+                }
+
+                {
+                    const r: u32 = @as(u32, @intFromFloat(ui_text.text_color[0] * 255.0)) <<  0;
+                    const g: u32 = @as(u32, @intFromFloat(ui_text.text_color[1] * 255.0)) <<  8;
+                    const b: u32 = @as(u32, @intFromFloat(ui_text.text_color[2] * 255.0)) << 16;
+                    const a: u32 = @as(u32, @intFromFloat(ui_text.text_color[3] * 255.0)) << 24;
+                    const color: u32 = r | g | b | a;
+
+                    var draw_font_desc = font.FontDrawDesc{};
+                    draw_font_desc.mFontID = self.renderer.davidlibre_font_id;
+                    draw_font_desc.mFontSize = ui_text.font_size;
+                    draw_font_desc.mFontColor = color;
+                    draw_font_desc.pText = ui_text.text.ptr;
+
+                    var text_size: [2]f32 = .{0, 0};
+                    font.fntMeasureFontText(ui_text.text.ptr, &draw_font_desc, &text_size[0], &text_size[1]);
+
+                    font.cmdDrawTextWithFont(cmd_list, ui_text.left, ui_text.bottom, &draw_font_desc);
+                }
+            }
+        }
     }
 
     pub fn createDescriptorSets(self: *@This()) void {

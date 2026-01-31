@@ -38,6 +38,7 @@ pub fn registerComponents(ecsu_world: ecsu.World) void {
     ecs.COMPONENT(ecs_world, Water);
     ecs.COMPONENT(ecs_world, HeightFog);
     ecs.COMPONENT(ecs_world, UIImage);
+    ecs.COMPONENT(ecs_world, UIText);
     ecs.COMPONENT(ecs_world, Camera);
     // ecs.COMPONENT(ecs_world, CIPhysicsBody);
     ecs.COMPONENT(ecs_world, PhysicsBody);
@@ -441,6 +442,19 @@ pub const UIImage = struct {
     rect: renderer_types.Rect,
     material: UIMaterial,
     render_order: i32 = 0,
+};
+
+pub const UIText = struct {
+    text_color: [4]f32 = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+    shadow_color: [4]f32 = [4]f32{ 0.0, 0.0, 0.0, 1.0 },
+    left: f32,
+    bottom: f32,
+    shadow_offset_x: f32 = 0,
+    shadow_offset_y: f32 = 0,
+    shadow_blur: f32 = 0,
+    shadow: bool = false,
+    font_size: f32,
+    text: []const u8,
 };
 
 pub const UIMaterial = struct {

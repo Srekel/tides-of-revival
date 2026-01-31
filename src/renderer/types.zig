@@ -73,6 +73,19 @@ pub const UiImage = struct {
     _padding0: [2]u32,
 };
 
+pub const UiText = struct {
+    text_color: [4]f32 = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+    shadow_color: [4]f32 = [4]f32{ 0.0, 0.0, 0.0, 1.0 },
+    left: f32,
+    bottom: f32,
+    shadow_offset_x: f32,
+    shadow_offset_y: f32,
+    shadow_blur: f32,
+    shadow: bool = false,
+    font_size: f32,
+    text: []const u8,
+};
+
 pub const UpdateDesc = struct {
     time_of_day_01: f32 = 0.0,
     sun_light: DirectionalLight = undefined,
@@ -87,6 +100,7 @@ pub const UpdateDesc = struct {
     removed_static_entities: std.ArrayList(RenderableEntityId) = undefined,
     dynamic_entities: *std.ArrayList(DynamicEntity) = undefined,
     ui_images: *std.ArrayList(UiImage) = undefined,
+    ui_texts: *std.ArrayList(UiText) = undefined,
 };
 
 pub const InstanceData = struct {

@@ -12,6 +12,9 @@ const UI = struct {
     logo_ent: ecsu.Entity,
     intro_ent: ecsu.Entity,
 
+    intro_text_ent: ecsu.Entity,
+    intro_text: [:0]const u8,
+
     main_window: *window.Window,
     ecsu_world: ecsu.World,
 };
@@ -68,6 +71,24 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
                 .color = [4]f32{ 1, 1, 1, 1 },
                 .texture = texture_handle,
             },
+        });
+    }
+
+    // Test text
+    {
+        self.intro_text = "Hello Shadows";
+        self.intro_text_ent = ecsu_world.newEntity();
+        self.intro_text_ent.set(fd.UIText{
+            .left = 10,
+            .bottom = 200,
+            .font_size = 72,
+            .text_color = [4]f32{ 226.0 / 255.0, 198.0 / 255.0, 83.0 / 255.0, 1.0 },
+            .shadow_color = [4]f32{ 0, 0, 0, 1.0 },
+            .shadow = true,
+            .shadow_blur = 2,
+            .shadow_offset_x = 2,
+            .shadow_offset_y = 2,
+            .text = self.intro_text,
         });
     }
 }
