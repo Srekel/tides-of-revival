@@ -35,6 +35,8 @@ const patch_types = @import("worldpatch/patch_types.zig");
 const world_patch_manager = @import("worldpatch/world_patch_manager.zig");
 const utility_scoring = @import("core/utility_scoring.zig");
 
+const ui = @import("ui.zig");
+
 const GameloopContext = struct {
     arena_system_lifetime: std.mem.Allocator,
     arena_system_update: std.mem.Allocator,
@@ -56,10 +58,6 @@ const GameloopContext = struct {
     time: *util.GameTime,
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 };
-
-var logo_ent: ecsu.Entity = undefined;
-const logo_size: f32 = 100;
-const logo_margin: f32 = 20;
 
 pub fn run() void {
     const root_allocator = std.heap.page_allocator;
@@ -120,26 +118,8 @@ pub fn run() void {
     var event_mgr = EventManager.create(root_allocator);
     defer event_mgr.destroy();
 
-    // Watermark Logo
-    {
-        const logo_texture = renderer_ctx.loadTexture("textures/ui/tides_logo_ui.dds");
-        const bottom = @as(f32, @floatFromInt(main_window.frame_buffer_size[1])) - logo_margin - logo_size;
-        const left = @as(f32, @floatFromInt(main_window.frame_buffer_size[0])) - logo_margin - logo_size;
-
-        logo_ent = ecsu_world.newEntity();
-        logo_ent.set(fd.UIImage{
-            .rect = .{
-                .x = left,
-                .y = bottom,
-                .width = logo_size,
-                .height = logo_size,
-            },
-            .material = .{
-                .color = [4]f32{ 1, 1, 1, 1 },
-                .texture = logo_texture,
-            },
-        });
-    }
+    ui.init(&renderer_ctx, main_window, ecsu_world);
+    defer ui.deinit();
 
     // ███████╗██╗   ██╗███████╗████████╗███████╗███╗   ███╗███████╗
     // ██╔════╝╚██╗ ██╔╝██╔════╝╚══██╔══╝██╔════╝████╗ ████║██╔════╝
@@ -361,28 +341,6 @@ pub fn run() void {
         _ = ecs.SYSTEM(ecsu_world.world, "updateDebugUI", ecs.OnUpdate, &system_desc);
     }
 
-    // const vars = ecs.script_vars_init(ecsu_world.world);
-    // defer ecs.script_vars_fini(vars);
-    // const x = ecs.script_vars_define_id(vars, "x", ecs.FLECS_IDecs_f32_tID_).?;
-    // // const y = ecs.script_vars_define(vars, "y", ecs.FLECS_IDecs_f32_tID_);
-
-    // @as(*f32, @alignCast(@ptrCast(x.value.ptr.?))).* = 8100;
-    // // // y.value.ptr = 1;
-
-    // const desc: ecs.script_eval_desc_t = .{ .vars = vars };
-    // _ = update_full(gameloop_context);
-
-    // const lol_script_code = gameloop_context.asset_mgr.loadAssetBlocking(IdLocal.init("content/flecs_scripts/tests/variables.flecs"), .instant_blocking);
-    // const lol_script = ecs.script_parse(ecsu_world.world, "minimal", @ptrCast(lol_script_code), null);
-    // // const res = ecs.script_eval(lol_script.?, null);
-    // const res = ecs.script_eval(lol_script.?, &desc);
-    // _ = res; // autofix
-    // const varent = ecs.lookup(ecsu_world.world, "variable_entity");
-    // _ = varent; // autofix
-    // // _ = ecs.set(ecsu_world.world, varent, fd.Position, .{ .x = 8190, .y = 200, .z = 8190 });
-    // // _ = ecs.set(ecsu_world.world, varent, fd.Scale, .{ .x = 150, .y = 150, .z = 150 });
-    // // _ = ecs.set(ecsu_world.world, varent, fd.Dynamic, .{});
-
     // ██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
     // ██║   ██║██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝██╔════╝
     // ██║   ██║██████╔╝██║  ██║███████║   ██║   █████╗
@@ -394,8 +352,7 @@ pub fn run() void {
         _ = arena_frame.reset(.retain_capacity);
         _ = arena_system_update.reset(.retain_capacity);
 
-        const logo = logo_ent.getMut(fd.UIImage).?;
-        logo.rect.y = @as(f32, @floatFromInt(main_window.frame_buffer_size[1])) - logo_margin - logo_size;
+        ui.update(gameloop_context.input_frame_data);
 
         // NOTE: There's no valuable distinction between update_full and update,
         // but probably not worth looking into deeper until we get a job system.
@@ -662,10 +619,6 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
             depth_fog.?.color = gradient.sample(@floatCast(environment_info.time_of_day_percent));
         }
     }
-
-    const logo_image = logo_ent.getMut(fd.UIImage).?;
-    const left = @as(f32, @floatFromInt(gameloop_context.main_window.frame_buffer_size[0])) - logo_margin - logo_size;
-    logo_image.*.rect.x = left;
 
     once_per_duration_test += dt_game;
     if (once_per_duration_test > 1) {
