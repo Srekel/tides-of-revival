@@ -31,7 +31,7 @@ pub const UniformFrameData = struct {
 
     // Water material data
     surface_albedo: [3]f32,
-    surface_opacity: f32,
+    surface_opacity: f32 = 0.8,
     normal_map_1_params: [4]f32,
     normal_map_2_params: [4]f32,
     normal_map_1_texture_index: u32 = renderer_types.InvalidResourceIndex,
@@ -55,6 +55,12 @@ pub const WaterPass = struct {
 
     instance_data: std.ArrayList(InstanceData),
     instance_data_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
+
+    surface_albedo: [3]f32 = [3]f32{ 14.0 / 255.0, 55.0 / 255.0, 125.0 / 255.0 },
+    surface_opacity: f32 = 0.8,
+    surface_roughness: f32 = 0.2,
+    normal_map_1_params: [4]f32 = [4]f32{ 0.2, 0.7, -0.12, 0.5 },
+    normal_map_2_params: [4]f32 = [4]f32{ 0.1, -0.42, 0.33, 0.5 },
 
     pub fn init(self: *@This(), rctx: *renderer.Renderer, allocator: std.mem.Allocator) void {
         self.allocator = allocator;
@@ -83,14 +89,22 @@ pub const WaterPass = struct {
         self.ocean_tile_mesh_handle = rctx.loadLegacyMesh("prefabs/primitives/primitive_plane.bin", IdLocal.init("pos_uv0_nor_tan_col")) catch unreachable;
         self.ocean_tile_mesh = rctx.getLegacyMesh(self.ocean_tile_mesh_handle);
         self.normal_map_texture = rctx.loadTexture("prefabs/environment/water/water_normal.dds");
+
+        self.surface_albedo = [3]f32{ 14.0 / 255.0, 55.0 / 255.0, 125.0 / 255.0 };
+        self.surface_opacity = 0.8;
+        self.surface_roughness = 0.2;
+        self.normal_map_1_params = [4]f32{ 0.2, 0.7, -0.12, 0.5 };
+        self.normal_map_2_params = [4]f32{ 0.1, -0.42, 0.33, 0.5 };
     }
 
     pub fn destroy(self: *@This()) void {
         self.instance_data.deinit();
     }
 
-    pub fn renderImGui(_: *@This()) void {
-        if (zgui.collapsingHeader("Water", .{})) {}
+    pub fn renderImGui(self: *@This()) void {
+        if (zgui.collapsingHeader("Water", .{})) {
+            _ = zgui.colorEdit3("Surface Color", .{ .col = &self.surface_albedo });
+        }
     }
 
     pub fn render(self: *@This(), cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView) void {
@@ -149,13 +163,13 @@ pub const WaterPass = struct {
             frame_data.lights_count = self.renderer.light_buffer.element_count;
             frame_data.fog_color = self.renderer.height_fog_settings.color;
             frame_data.fog_density = self.renderer.height_fog_settings.density;
-            frame_data.surface_albedo = [3]f32{ 0.02, 0.2, 0.4 };
+            frame_data.surface_albedo = self.surface_albedo;
             frame_data.normal_map_1_texture_index = self.renderer.getTextureBindlessIndex(self.normal_map_texture);
             frame_data.normal_map_2_texture_index = self.renderer.getTextureBindlessIndex(self.normal_map_texture);
-            frame_data.surface_roughness = 0.2;
-            frame_data.surface_opacity = 0.8;
-            frame_data.normal_map_1_params = [4]f32{ 0.2, 0.7, -0.12, 0.5 };
-            frame_data.normal_map_2_params = [4]f32{ 0.1, -0.42, 0.33, 0.5 };
+            frame_data.surface_roughness = self.surface_roughness;
+            frame_data.surface_opacity = self.surface_opacity;
+            frame_data.normal_map_1_params = self.normal_map_1_params;
+            frame_data.normal_map_2_params = self.normal_map_2_params;
             frame_data._padding0 = 42;
             frame_data._padding1 = 42;
 
@@ -269,7 +283,7 @@ pub const WaterPass = struct {
     }
 
     pub fn prepareDescriptorSets(self: *@This()) void {
-        var params: [2]graphics.DescriptorData = undefined;
+        var params: [3]graphics.DescriptorData = undefined;
 
         for (0..renderer.Renderer.data_buffer_count) |i| {
             var uniform_frame_buffer = self.renderer.getBuffer(self.uniform_frame_buffers[i]);
@@ -280,10 +294,9 @@ pub const WaterPass = struct {
             params[1] = std.mem.zeroes(graphics.DescriptorData);
             params[1].pName = "g_scene_color";
             params[1].__union_field3.ppTextures = @ptrCast(&self.renderer.scene_color_copy.*.pTexture);
-            // TODO(gmodarelli): Restore
-            // params[2] = std.mem.zeroes(graphics.DescriptorData);
-            // params[2].pName = "g_depth_buffer";
-            // params[2].__union_field3.ppTextures = @ptrCast(&self.renderer.depth_buffer_copy.*.pTexture);
+            params[2] = std.mem.zeroes(graphics.DescriptorData);
+            params[2].pName = "g_depth_buffer";
+            params[2].__union_field3.ppTextures = @ptrCast(&self.renderer.depth_buffer_copy.*.pTexture);
 
             graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.water_descriptor_sets, params.len, @ptrCast(&params));
 

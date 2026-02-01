@@ -8,8 +8,7 @@ SamplerState g_linear_repeat_sampler : register(s0, UPDATE_FREQ_NONE);
 SamplerState g_linear_clamp_edge_sampler : register(s1, UPDATE_FREQ_NONE);
 
 Texture2D<float4> g_scene_color : register(t0, UPDATE_FREQ_PER_FRAME);
-// TODO(gmodarelli): restore
-// Texture2D<float> g_depth_buffer : register(t1, UPDATE_FREQ_PER_FRAME);
+Texture2D<float> g_depth_buffer : register(t1, UPDATE_FREQ_PER_FRAME);
 
 cbuffer RootConstant : register(b0)
 {

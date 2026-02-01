@@ -647,6 +647,7 @@ pub const PSOManager = struct {
                 .depth_format = self.renderer.depth_buffer.*.mFormat,
                 .vertex_layout_id = IdLocal.init("pos_uv0_nor_tan_col"),
                 .sampler_ids = &sampler_ids,
+                .blend_state = self.blend_states.get(IdLocal.init("bs_transparent")).?,
             };
             self.createGraphicsPipeline(desc);
         }

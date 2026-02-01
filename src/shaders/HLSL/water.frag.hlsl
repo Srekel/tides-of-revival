@@ -30,9 +30,9 @@ float4 PS_MAIN(VSOutput Input) : SV_TARGET0
 
     // TODO(gmodarelli): Restore depth
     // // Calculate water depth
-    // float scene_depth = g_depth_buffer.Sample(g_linear_clamp_edge_sampler, screen_uv).r;
-    // float eye_depth = max(0.000001f, LinearEyeDepth(scene_depth));
-    // float water_depth = max(0.000001f, eye_depth - screen_position.w);
+    float scene_depth = g_depth_buffer.Sample(g_linear_clamp_edge_sampler, screen_uv).r;
+    float eye_depth = max(0.000001f, LinearEyeDepth(scene_depth));
+    float water_depth = max(0.000001f, eye_depth - screen_position.w) / 10.0f;
 
     float3 scene_color = g_scene_color.Sample(g_linear_clamp_edge_sampler, screen_uv).rgb;
 
@@ -57,15 +57,16 @@ float4 PS_MAIN(VSOutput Input) : SV_TARGET0
     surfaceInfo.position = Input.PositionWS.xyz;
     surfaceInfo.normal = N;
     surfaceInfo.view = normalize(g_cam_pos.xyz - Input.PositionWS.xyz);
-    surfaceInfo.albedo = lerp(scene_color, m_albedo_surface.rgb, m_surface_opacity);
+    surfaceInfo.albedo = lerp(scene_color, m_albedo_surface.rgb, saturate(water_depth));
     surfaceInfo.perceptual_roughness = max(0.04f, m_surface_roughness);
     surfaceInfo.metallic = 0.0;
-    surfaceInfo.reflectance = 1.0;
+    surfaceInfo.reflectance = 0.5;
 
     float3 Lo = float3(0.0f, 0.0f, 0.0f);
 
     ByteAddressBuffer lightsBuffer = ResourceDescriptorHeap[g_lights_buffer_index];
-    for (uint i = 0; i < g_lights_count; ++i)
+    // for (uint i = 0; i < g_lights_count; ++i)
+    for (uint i = 0; i < 1; ++i)
     {
         GpuLight light = lightsBuffer.Load<GpuLight>(i * sizeof(GpuLight));
         Lo += ShadeLight(light, surfaceInfo, 1.0f);
@@ -76,5 +77,5 @@ float4 PS_MAIN(VSOutput Input) : SV_TARGET0
     float fog_factor = exp(-g_fog_density * view_distance);
     Lo = lerp(g_fog_color, Lo, saturate(fog_factor));
 
-    RETURN(float4(Lo, 1.0f));
+    RETURN(float4(Lo, saturate(water_depth)));
 }
