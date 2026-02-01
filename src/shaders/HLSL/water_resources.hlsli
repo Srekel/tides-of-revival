@@ -25,7 +25,7 @@ cbuffer cbFrame : register(b1, UPDATE_FREQ_PER_FRAME)
 	uint g_lights_buffer_index;
 	uint g_lights_count;
 	float g_time;
-	uint _padding0;
+	uint m_caustics_texture_index;
 	float3 g_fog_color;
 	float g_fog_density;
 

@@ -25,7 +25,7 @@ pub const UniformFrameData = struct {
     lights_buffer_index: u32,
     lights_count: u32,
     time: f32,
-    _padding0: u32,
+    caustics_texture_index: u32,
     fog_color: [3]f32,
     fog_density: f32,
 
@@ -49,6 +49,7 @@ pub const WaterPass = struct {
     ocean_tile_mesh_handle: renderer.LegacyMeshHandle,
     ocean_tile_mesh: renderer.LegacyMesh,
     normal_map_texture: renderer.TextureHandle = undefined,
+    caustics_texture: renderer.TextureHandle = undefined,
     uniform_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
     water_descriptor_sets: [*c]graphics.DescriptorSet,
     rt_copy_descriptor_sets: [*c]graphics.DescriptorSet,
@@ -90,6 +91,7 @@ pub const WaterPass = struct {
         self.ocean_tile_mesh_handle = rctx.loadLegacyMesh("prefabs/primitives/primitive_plane.bin", IdLocal.init("pos_uv0_nor_tan_col")) catch unreachable;
         self.ocean_tile_mesh = rctx.getLegacyMesh(self.ocean_tile_mesh_handle);
         self.normal_map_texture = rctx.loadTexture("prefabs/environment/water/water_normal.dds");
+        self.caustics_texture = rctx.loadTexture("prefabs/environment/water/T_Animated_WaterCaustics_1K_overlay.dds");
 
         self.water_fog_color = [3]f32{ 14.0 / 255.0, 55.0 / 255.0, 125.0 / 255.0 };
         self.water_density = 0.3;
@@ -168,6 +170,7 @@ pub const WaterPass = struct {
             frame_data.fog_color = self.renderer.height_fog_settings.color;
             frame_data.fog_density = self.renderer.height_fog_settings.density;
             frame_data.water_fog_color = self.water_fog_color;
+            frame_data.caustics_texture_index = self.renderer.getTextureBindlessIndex(self.caustics_texture);
             frame_data.normal_map_1_texture_index = self.renderer.getTextureBindlessIndex(self.normal_map_texture);
             frame_data.normal_map_2_texture_index = self.renderer.getTextureBindlessIndex(self.normal_map_texture);
             frame_data.surface_roughness = self.surface_roughness;
