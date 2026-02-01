@@ -686,9 +686,9 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         var plaster_material = renderer.UberShaderMaterialData.init();
         plaster_material.gbuffer_pipeline_id = pipeline_lit_gbuffer_opaque_id;
         plaster_material.shadow_caster_pipeline_id = pipeline_shadow_caster_opaque_id;
-        plaster_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_plaster_albedo.dds");
-        plaster_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_plaster_arm.dds");
-        plaster_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medium_house/medium_house_plaster_normal.dds");
+        plaster_material.albedo = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_Plaster_BaseColor.dds");
+        plaster_material.arm = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_Plaster_ORM.dds");
+        plaster_material.normal = prefab_mgr.rctx.loadTexture("prefabs/buildings/medieval_village/houses/T_Plaster_Normal.dds");
         const lamp_plaster_material_id = ID("lamp_plaster");
         prefab_mgr.rctx.loadMaterial(lamp_plaster_material_id, plaster_material) catch unreachable;
 
