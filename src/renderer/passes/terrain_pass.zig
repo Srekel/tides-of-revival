@@ -40,7 +40,6 @@ const TerrainLayer = struct {
     diffuse: renderer.TextureHandle,
     normal: renderer.TextureHandle,
     arm: renderer.TextureHandle,
-    height: renderer.TextureHandle,
 };
 
 const TerrainLayerMaterial = extern struct {
@@ -50,8 +49,12 @@ const TerrainLayerMaterial = extern struct {
     height_index: u32,
 };
 
+const TerrainMaterialBuffer = struct {
+    layers: [4]TerrainLayerMaterial,
+};
+
 const TerrainMaterial = struct {
-    layers: [3]TerrainLayer,
+    layers: [4]TerrainLayer,
 };
 
 pub const UniformFrameData = struct {
@@ -170,7 +173,7 @@ pub const TerrainPass = struct {
         self.terrain_material_buffers = blk: {
             var buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle = undefined;
             for (buffers, 0..) |_, buffer_index| {
-                buffers[buffer_index] = self.renderer.createUniformBuffer(TerrainMaterial);
+                buffers[buffer_index] = self.renderer.createUniformBuffer(TerrainMaterialBuffer);
             }
 
             break :blk buffers;
@@ -488,21 +491,21 @@ pub const TerrainPass = struct {
         {
             const trazy_zone_2 = ztracy.ZoneNC(@src(), "material buffer", 0x00_ff_ff_00);
             defer trazy_zone_2.End();
-            var terrain_material_data: [3]TerrainLayerMaterial = undefined;
+            var terrain_material_data: [4]TerrainLayerMaterial = undefined;
             for (self.terrain_material.layers, 0..) |layer, i| {
                 terrain_material_data[i] = .{
                     .diffuse_index = self.renderer.getTextureBindlessIndex(layer.diffuse),
                     .normal_index = self.renderer.getTextureBindlessIndex(layer.normal),
                     .arm_index = self.renderer.getTextureBindlessIndex(layer.arm),
-                    .height_index = self.renderer.getTextureBindlessIndex(layer.height),
+                    .height_index = std.math.maxInt(u32), // TODO
                 };
             }
 
             const data = OpaqueSlice{
                 .data = @ptrCast(&terrain_material_data),
-                .size = @sizeOf(TerrainMaterial),
+                .size = @sizeOf(TerrainLayerMaterial) * terrain_material_data.len,
             };
-            self.renderer.updateBuffer(data, 0, TerrainMaterial, self.terrain_material_buffers[frame_index]);
+            self.renderer.updateBuffer(data, 0, TerrainLayerMaterial, self.terrain_material_buffers[frame_index]);
         }
 
         // Update Descriptor Sets
@@ -649,6 +652,7 @@ pub const TerrainPass = struct {
         self.terrain_material.layers[0] = self.loadTerrainLayer("forest_ground_01") catch unreachable;
         self.terrain_material.layers[1] = self.loadTerrainLayer("T_Rock_Cliff_A_2x2_2K") catch unreachable;
         self.terrain_material.layers[2] = self.loadTerrainLayer("snow_02") catch unreachable;
+        self.terrain_material.layers[3] = self.loadTerrainLayer("T_Ground_SandWithShells1_2K") catch unreachable;
 
         self.rust_texture = self.renderer.loadTexture("prefabs/environment/terrain/T_Overlay_Rust2.dds");
     }
@@ -690,23 +694,10 @@ pub const TerrainPass = struct {
             break :blk self.renderer.loadTexture(path);
         };
 
-        const height = blk: {
-            // Generate Path
-            var namebuf: [256]u8 = undefined;
-            const path = std.fmt.bufPrintZ(
-                namebuf[0..namebuf.len],
-                "prefabs/environment/terrain/{s}_height.dds",
-                .{name},
-            ) catch unreachable;
-
-            break :blk self.renderer.loadTexture(path);
-        };
-
         return .{
             .diffuse = diffuse,
             .normal = normal,
             .arm = arm,
-            .height = height,
         };
     }
 

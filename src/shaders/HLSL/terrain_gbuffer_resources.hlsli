@@ -34,7 +34,7 @@ cbuffer cbFrame : register(b1, UPDATE_FREQ_PER_FRAME)
 
 cbuffer cbMaterial : register(b2, UPDATE_FREQ_PER_FRAME)
 {
-	TerrainLayerTextureIndices g_layers[3];
+	TerrainLayerTextureIndices g_layers[4];
 };
 
 #endif // _TERRAIN_RESOURCES_H

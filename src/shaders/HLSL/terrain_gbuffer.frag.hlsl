@@ -132,9 +132,7 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     float slope = abs(N.y);
     slope = smoothstep(g_black_point, g_white_point, slope);
 
-    uint grass_layer_index = 0;
-    uint rock_layer_index = 1;
-    uint snow_layer_index = 2;
+    uint sand_layer_index = 3;
 
     float triplanarScale = 1;
 
@@ -144,17 +142,22 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     float3 grass_albedo;
     float3 grass_normal;
     float3 grass_arm;
-    SampleTerrainLayer(grass_layer_index, Input.PositionWS.xyz, N, 8, 20, cameraDistance, grass_albedo, grass_normal, grass_arm);
+    SampleTerrainLayer(0, Input.PositionWS.xyz, N, 8, 20, cameraDistance, grass_albedo, grass_normal, grass_arm);
 
     float3 rock_albedo;
     float3 rock_normal;
     float3 rock_arm;
-    SampleTerrainLayer(rock_layer_index, Input.PositionWS.xyz, N, 32, 20, cameraDistance, rock_albedo, rock_normal, rock_arm);
+    SampleTerrainLayer(1, Input.PositionWS.xyz, N, 32, 20, cameraDistance, rock_albedo, rock_normal, rock_arm);
 
     float3 snow_albedo;
     float3 snow_normal;
     float3 snow_arm;
-    SampleTerrainLayer(snow_layer_index, Input.PositionWS.xyz, N, 32, 20, cameraDistance, snow_albedo, snow_normal, snow_arm);
+    SampleTerrainLayer(2, Input.PositionWS.xyz, N, 32, 20, cameraDistance, snow_albedo, snow_normal, snow_arm);
+
+    float3 sand_albedo;
+    float3 sand_normal;
+    float3 sand_arm;
+    SampleTerrainLayer(3, Input.PositionWS.xyz, N, 8, 20, cameraDistance, sand_albedo, sand_normal, sand_arm);
 
     // Macro-Variation on grass
     {
@@ -171,21 +174,42 @@ GBufferOutput PS_MAIN(TerrainVSOutput Input, float3 barycentrics : SV_Barycentri
     float3 arm = lerp(rock_arm, grass_arm, slope);
     N = normalize(lerp(rock_normal, grass_normal, slope));
 
+    // Blend in sand
+    {
+        const float sand_height_fudge = 5;
+        const float sand_height_transition = 2;
+        fnl_state state = fnlCreateState();
+        state.fractal_type = FNL_FRACTAL_FBM;
+        state.frequency = 0.02;
+
+        float noise = fnlGetNoise2D(state, Input.PositionWS.x, Input.PositionWS.z) * sand_height_fudge;
+        // TODO: Pass the ocean level instead of hardcoding
+        float sand_height = 60 + noise;
+        float world_height_mask = smoothstep(sand_height, sand_height + sand_height_transition, Input.PositionWS.y);
+        // world_height_mask *= smoothstep(0.70, 0.701, saturate(dot(float3(0, 1, 0), N) * 0.5 + 0.5));
+
+        albedo = lerp(sand_albedo, albedo, world_height_mask);
+        N = lerp(sand_normal, N, world_height_mask);
+        arm = lerp(sand_arm, arm, world_height_mask);
+    }
+
     // Blend in snow
-    const float snow_height_fudge = 200;
-    const float snow_height_transition = 10;
-    fnl_state state = fnlCreateState();
-    state.fractal_type = FNL_FRACTAL_FBM;
-    state.frequency = 0.02;
+    {
+        const float snow_height_fudge = 200;
+        const float snow_height_transition = 10;
+        fnl_state state = fnlCreateState();
+        state.fractal_type = FNL_FRACTAL_FBM;
+        state.frequency = 0.02;
 
-    float noise = fnlGetNoise2D(state, Input.PositionWS.x, Input.PositionWS.z) * snow_height_fudge;
-    float snow_height = 800 + noise;
-    float world_height_mask = smoothstep(snow_height, snow_height + snow_height_transition, Input.PositionWS.y); // saturate(inverseLerp(0, 850, Input.PositionWS.y));
-    world_height_mask *= smoothstep(0.70, 0.701, saturate(dot(float3(0, 1, 0), N) * 0.5 + 0.5));
+        float noise = fnlGetNoise2D(state, Input.PositionWS.x, Input.PositionWS.z) * snow_height_fudge;
+        float snow_height = 800 + noise;
+        float world_height_mask = smoothstep(snow_height, snow_height + snow_height_transition, Input.PositionWS.y); // saturate(inverseLerp(0, 850, Input.PositionWS.y));
+        world_height_mask *= smoothstep(0.70, 0.701, saturate(dot(float3(0, 1, 0), N) * 0.5 + 0.5));
 
-    albedo = lerp(albedo, snow_albedo, world_height_mask);
-    N = lerp(N, snow_normal, world_height_mask);
-    arm = lerp(arm, snow_arm, world_height_mask);
+        albedo = lerp(albedo, snow_albedo, world_height_mask);
+        N = lerp(N, snow_normal, world_height_mask);
+        arm = lerp(arm, snow_arm, world_height_mask);
+    }
 
     arm.g = lerp(1.0f, arm.g, fresnel);
     float reflectance = lerp(0.0f, 0.5f, fresnel);
