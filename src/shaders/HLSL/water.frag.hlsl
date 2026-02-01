@@ -28,14 +28,6 @@ float4 PS_MAIN(VSOutput Input) : SV_TARGET0
     float4 screen_position = CalculateScreenPosition(clip_position);
     float2 screen_uv = screen_position.xy / screen_position.w;
 
-    // TODO(gmodarelli): Restore depth
-    // // Calculate water depth
-    float scene_depth = g_depth_buffer.Sample(g_linear_clamp_edge_sampler, screen_uv).r;
-    float eye_depth = max(0.000001f, LinearEyeDepth(scene_depth));
-    float water_depth = max(0.000001f, eye_depth - screen_position.w) / 10.0f;
-
-    float3 scene_color = g_scene_color.Sample(g_linear_clamp_edge_sampler, screen_uv).rgb;
-
     // Surface lighting
     float3 N = normalize(Input.Normal);
     if (hasValidTexture(m_normal_map_1_texture_index) && hasValidTexture(m_normal_map_2_texture_index))
@@ -51,13 +43,32 @@ float4 PS_MAIN(VSOutput Input) : SV_TARGET0
         float3 tangent_normal_2 = ReconstructNormal(SampleTex2D(normal_texture_2, g_linear_repeat_sampler, water_2_uv), m_normal_map_2_params.w);
         float3 tangent_normal = NormalBlend(tangent_normal_1, tangent_normal_2);
         N = normalize(mul(tangent_normal, TBN));
+
+        screen_uv = (screen_position.xy + tangent_normal.xy * m_refraction_strength) / screen_position.w;
     }
+
+    // Calculate water depth
+    float scene_depth = g_depth_buffer.Sample(g_linear_clamp_edge_sampler, screen_uv).r;
+    float eye_depth = max(0.000001f, LinearEyeDepth(scene_depth));
+    float water_depth = eye_depth - screen_position.w; // / 10.0f;
+
+    if (water_depth < 0)
+    {
+        screen_uv = screen_position.xy / screen_position.w;
+    }
+
+    water_depth = max(0.0000001f, water_depth);
+
+    float3 scene_color = g_scene_color.Sample(g_linear_clamp_edge_sampler, screen_uv).rgb;
+
+    float3 water_fog_color = m_water_fog_color.rgb;
+    float underwater_fog_factor = exp2(-m_water_density * water_depth);
 
     SurfaceInfo surfaceInfo;
     surfaceInfo.position = Input.PositionWS.xyz;
     surfaceInfo.normal = N;
     surfaceInfo.view = normalize(g_cam_pos.xyz - Input.PositionWS.xyz);
-    surfaceInfo.albedo = lerp(scene_color, m_albedo_surface.rgb, saturate(water_depth));
+    surfaceInfo.albedo = lerp(water_fog_color, scene_color, underwater_fog_factor);
     surfaceInfo.perceptual_roughness = max(0.04f, m_surface_roughness);
     surfaceInfo.metallic = 0.0;
     surfaceInfo.reflectance = 0.5;
@@ -77,5 +88,5 @@ float4 PS_MAIN(VSOutput Input) : SV_TARGET0
     float fog_factor = exp(-g_fog_density * view_distance);
     Lo = lerp(g_fog_color, Lo, saturate(fog_factor));
 
-    RETURN(float4(Lo, saturate(water_depth)));
+    RETURN(float4(Lo, 1.0f));
 }

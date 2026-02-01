@@ -30,15 +30,15 @@ cbuffer cbFrame : register(b1, UPDATE_FREQ_PER_FRAME)
 	float g_fog_density;
 
 	// Water material
-	float3 m_albedo_surface;
-	float m_surface_opacity;
+	float3 m_water_fog_color;
+	float m_water_density;
 	float4 m_normal_map_1_params;
 	float4 m_normal_map_2_params;
 
 	uint m_normal_map_1_texture_index;
 	uint m_normal_map_2_texture_index;
 	float m_surface_roughness;
-	float _padding1;
+	float m_refraction_strength;
 };
 
 struct VSInput
