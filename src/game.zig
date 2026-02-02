@@ -380,11 +380,11 @@ pub fn run() void {
         _ = arena_frame.reset(.retain_capacity);
         _ = arena_system_update.reset(.retain_capacity);
 
-        ui.update(gameloop_context.input_frame_data);
-
         // NOTE: There's no valuable distinction between update_full and update,
         // but probably not worth looking into deeper until we get a job system.
         const done = update_full(gameloop_context);
+
+        ui.update(gameloop_context.input_frame_data, @min(1.0 / 30.0, gameloop_context.stats.delta_time));
 
         ztracy.FrameMark();
 

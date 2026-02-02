@@ -1,3 +1,4 @@
+const std = @import("std");
 const renderer = @import("renderer/renderer.zig");
 const window = @import("renderer/window.zig");
 const ecsu = @import("flecs_util/flecs_util.zig");
@@ -8,18 +9,97 @@ const config = @import("config/config.zig");
 const logo_size: f32 = 100;
 const logo_margin: f32 = 20;
 
+const TextLine = struct {
+    text: [:0]const u8 = "",
+    size: f32 = 0,
+    anchor_x: f32 = 0,
+    anchor_y: f32 = 0,
+    line_height: f32 = 1.25,
+};
+
+const Text = struct {
+    color_start: [4]f32 = [4]f32{ 163.0 / 255.0, 112.0 / 255.0, 58.0 / 255.0, 0.0 },
+    color_end: [4]f32 = [4]f32{ 229.0 / 255.0, 207.0 / 255.0, 121.0 / 255.0, 1.0 },
+    shadow_color: [4]f32 = [4]f32{ 0, 0, 0, 0.0 },
+    shadow_blur: f32 = 14,
+    lines: []const TextLine,
+    size: f32 = 0,
+};
+
 const UI = struct {
     logo_ent: ecsu.Entity,
     intro_ent: ecsu.Entity,
 
-    intro_text_ent: ecsu.Entity,
-    intro_text: [:0]const u8,
+    intro_text_ents: [intro.lines.len]ecsu.Entity,
 
     main_window: *window.Window,
     ecsu_world: ecsu.World,
 };
 
 var self: UI = undefined;
+
+fn doText(text: Text, left: f32, bottom_base: f32, entities: []ecsu.Entity) void {
+    var bottom = bottom_base;
+    var size = text.size;
+    for (text.lines, 0..) |line, i| {
+        size = if (line.size > 0) line.size else size;
+        entities[i] = self.ecsu_world.newEntity();
+        entities[i].set(fd.UIText{
+            .left = left + line.anchor_x,
+            .bottom = bottom,
+            .font_size = size,
+            .text_color = text.color_start,
+            .shadow_color = text.shadow_color,
+            .shadow = true,
+            .shadow_blur = 0,
+            .shadow_offset_x = 0,
+            .shadow_offset_y = 0,
+            .text = line.text,
+        });
+
+        bottom += size * line.line_height;
+    }
+}
+
+const intro: Text = .{
+    .lines = &.{
+        .{
+            .text = "Tides of Revival",
+            .size = 72,
+            .anchor_x = 50,
+        },
+        .{
+            .text = "Hill 3: A Sense of Scale",
+            .size = 42,
+            .anchor_x = 90,
+            .line_height = 2,
+        },
+        .{
+            .size = 18,
+        },
+        .{ .text = "Your boat capsized in a storm. Drifting for days, clinging to a chunk of" },
+        .{ .text = "wood, you finally make it to a beach. Rescued by a nearby village, you" },
+        .{ .text = "have been brought back to life and vigor." },
+        .{ .text = "" },
+        .{ .text = "You tell them of your past. Your skills. They ask for one favor in return." },
+        .{ .text = "" },
+        .{ .text = "\"Slay the beast. Track it at night. Hunt during the day.\"" },
+        .{ .text = "" },
+        .{ .text = "Just as you are about to leave, the village ranger has one last piece of advice." },
+        .{ .text = "" },
+        .{ .text = "\"Never travel in darkness.\"" },
+        .{ .text = "" },
+        .{ .text = "" },
+        .{
+            .text = "[Press Left Mouse Button to start game]",
+            .anchor_x = 145,
+        },
+        .{
+            .text = "[You can always press H for instructions]",
+            .anchor_x = 140,
+        },
+    },
+};
 
 pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_world: ecsu.World) void {
     self.main_window = main_window;
@@ -68,34 +148,18 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
                 .height = height,
             },
             .material = .{
-                .color = [4]f32{ 1, 1, 1, 1 },
+                .color = [4]f32{ 1, 1, 1, 0 },
                 .texture = texture_handle,
             },
         });
-    }
 
-    // Test text
-    {
-        self.intro_text = "Hello Shadows";
-        self.intro_text_ent = ecsu_world.newEntity();
-        self.intro_text_ent.set(fd.UIText{
-            .left = 10,
-            .bottom = 200,
-            .font_size = 72,
-            .text_color = [4]f32{ 226.0 / 255.0, 198.0 / 255.0, 83.0 / 255.0, 1.0 },
-            .shadow_color = [4]f32{ 0, 0, 0, 1.0 },
-            .shadow = true,
-            .shadow_blur = 2,
-            .shadow_offset_x = 2,
-            .shadow_offset_y = 2,
-            .text = self.intro_text,
-        });
+        doText(intro, left + 50, bottom + 50, &self.intro_text_ents);
     }
 }
 
 pub fn deinit() void {}
 
-pub fn update(input_frame_data: *input.FrameData) void {
+pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
     const left = @as(f32, @floatFromInt(self.main_window.frame_buffer_size[0])) - logo_margin - logo_size;
 
     // LOGO
@@ -104,8 +168,31 @@ pub fn update(input_frame_data: *input.FrameData) void {
     logo.rect.y = @as(f32, @floatFromInt(self.main_window.frame_buffer_size[1])) - logo_margin - logo_size;
 
     // Intro
-    if (self.intro_ent.id != 0 and input_frame_data.just_pressed(config.input.wielded_use_primary)) {
-        self.ecsu_world.delete(self.intro_ent.id);
-        self.intro_ent.id = 0;
+    if (self.intro_text_ents[0].id != 0) {
+        const intro_image = self.intro_ent.getMut(fd.UIImage).?;
+        if (input_frame_data.just_pressed(config.input.wielded_use_primary)) {
+            self.ecsu_world.delete(self.intro_ent.id);
+            for (self.intro_text_ents) |ent| {
+                if (ent.id != 0) {
+                    self.ecsu_world.delete(ent.id);
+                }
+            }
+            self.intro_text_ents[0].id = 0;
+        } else if (intro_image.material.color[3] < 1) {
+            intro_image.material.color[3] = @min(1, intro_image.material.color[3] + dt * 4);
+        } else {
+            for (self.intro_text_ents) |ent| {
+                const text = ent.getMut(fd.UIText).?;
+                if (text.shadow_color[3] < 1.0) {
+                    text.text_color[3] = 1;
+                    text.shadow_color[3] = @min(1, text.shadow_color[3] + dt * 2.5);
+                    text.shadow_blur = @min(text.font_size / 5, text.shadow_blur + dt * 20);
+                    for (0..3) |i| {
+                        text.text_color[i] = std.math.lerp(intro.color_start[i], intro.color_end[i], text.shadow_color[3]);
+                    }
+                    break;
+                }
+            }
+        }
     }
 }
