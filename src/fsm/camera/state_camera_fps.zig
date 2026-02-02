@@ -17,6 +17,7 @@ const context = @import("../../core/context.zig");
 const renderer = @import("../../renderer/renderer.zig");
 const im3d = @import("im3d");
 const zaudio = @import("zaudio");
+const ztracy = @import("ztracy");
 
 pub const StateContext = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
@@ -114,6 +115,8 @@ pub fn create(create_ctx: StateContext) void {
 }
 
 fn cameraStateFps(it: *ecs.iter_t) callconv(.C) void {
+    const tracy_zone = ztracy.ZoneNC(@src(), "playerStateIdle", 0x00_00_00_ff);
+    defer tracy_zone.End();
     const ctx: *StateContext = @ptrCast(@alignCast(it.ctx));
 
     const inputs = ecs.field(it, fd.Input, 0).?;
@@ -372,9 +375,8 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 const height_prev = player_pos.y;
 
                 const walk_meter_per_second = 1.35;
-                const height_term = @max(1.0, (height_prev - 200) * 0.01 + (height_next - 200) * 0.01);
-                const walk_winding = 1.2;
-                const height_factor = height_term;
+                const height_factor = @max(1.0, (height_prev - 250) * 0.02 + (height_next - 250) * 0.02);
+                const walk_winding = 1.1;
                 const dist_as_the_crow_flies = dist_to_dest;
                 const dist_travel = walk_winding * dist_as_the_crow_flies;
                 const time_fudge = 4.0 / 24.0;
@@ -479,6 +481,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 }
 
                 environment_info.journey_destination = hit_pos;
+                environment_info.journey_start = player_pos.elems().*;
 
                 environment_info.journey_time_end = environment_info.world_time + duration;
                 std.log.info("time:{d} distcrow:{d} dist:{d} duration_h:{d} height_factor{d} end:{d}", .{
@@ -523,11 +526,15 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                 cam_pos.y += environment_info.player_state_time * environment_info.player_state_time * 5;
             },
             .journeying => {
+                player_pos.x = environment_info.journey_destination[0];
+                player_pos.y = environment_info.journey_destination[1];
+                player_pos.z = environment_info.journey_destination[2];
+
                 const cam_fwd = environment_info.journey_camera.?.getMut(fd.Forward).?;
                 var cam_pos = environment_info.journey_camera.?.getMut(fd.Position).?;
                 var z_cam_pos = cam_pos.asZM();
                 var z_dest = zm.loadArr3(environment_info.journey_destination);
-                var z_start = z_pos;
+                var z_start = zm.loadArr3(environment_info.journey_start);
                 z_start[1] += 5;
                 z_dest[1] += 5;
 
@@ -906,7 +913,11 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                 light_ent.set(fd.Dynamic{});
 
                 light_ent.set(fd.PointLight{
-                    .color = .{ .r = 0.2, .g = 1, .b = 0.3 },
+                    .color = .{
+                        .r = 0.2,
+                        .g = 0.4,
+                        .b = 1.0,
+                    },
                     .range = 20,
                     .intensity = 4,
                 });

@@ -59,6 +59,22 @@ const GameloopContext = struct {
     world_patch_mgr: *world_patch_manager.WorldPatchManager,
 };
 
+var tracy_zones: std.ArrayList(ztracy.ZoneCtx) = undefined;
+
+fn ecs_trace_push(filename: [*:0]const u8, line: usize, name: [*:0]const u8) callconv(.C) void {
+    _ = filename; // autofix
+    _ = line; // autofix
+
+    const tracy_zone = ztracy.ZoneNC(@src(), name, 0x00_00_00_ff);
+    tracy_zones.appendAssumeCapacity(tracy_zone);
+}
+fn ecs_trace_pop(filename: [*:0]const u8, line: usize, name: [*:0]const u8) callconv(.C) void {
+    _ = filename; // autofix
+    _ = line; // autofix
+    _ = name; // autofix
+    tracy_zones.pop().?.End();
+}
+
 pub fn run() void {
     const root_allocator = std.heap.page_allocator;
     zstbi.init(root_allocator);
@@ -71,6 +87,14 @@ pub fn run() void {
     // _ = ecs.log_set_level(0);
     fd.registerComponents(ecsu_world);
     fr.registerRelations(ecsu_world);
+    {
+        tracy_zones = .init(root_allocator);
+        tracy_zones.ensureTotalCapacity(100) catch unreachable;
+        // var ecs_os_api = ecs.os_get_api();
+        ecs.os.ecs_os_api.perf_trace_push = ecs_trace_push;
+        ecs.os.ecs_os_api.perf_trace_pop = ecs_trace_pop;
+        // ecs.os_set_api(&ecs_os_api);
+    }
 
     // Frame Stats
     var stats = FrameStats.init();
@@ -348,6 +372,10 @@ pub fn run() void {
     // ╚██████╔╝██║     ██████╔╝██║  ██║   ██║   ███████╗
     //  ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝
 
+    for (0..50000) |_| {
+        world_patch_mgr.tickOne();
+    }
+
     while (true) {
         _ = arena_frame.reset(.retain_capacity);
         _ = arena_system_update.reset(.retain_capacity);
@@ -471,9 +499,9 @@ fn update_full(gameloop_context: GameloopContext) bool {
 
     // TODO: Move this to system
     const environment_info = ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
-    const is_journeying = environment_info.journey_state == .journeying;
+    const is_journeying = environment_info.journey_state != .not;
 
-    const ticks: u32 = if (is_journeying) 1 else if (has_initial_sim) 100 else 4;
+    const ticks: u32 = if (is_journeying) 1 else if (has_initial_sim) 16 else 10000;
     for (0..ticks) |_| {
         world_patch_mgr.tickOne();
     }
@@ -628,6 +656,8 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
     }
 
     // AK.SoundEngine.renderAudio(false) catch unreachable;
+    const ecs_trazy_zone = ztracy.ZoneNC(@src(), "ecs", 0x00_00_00_ff);
+    defer ecs_trazy_zone.End();
     ecs.set_time_scale(gameloop_context.ecsu_world.world, @floatCast(time_scale));
     ecsu_world.progress(@floatCast(dt));
 }

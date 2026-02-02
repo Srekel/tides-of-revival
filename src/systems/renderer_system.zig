@@ -521,6 +521,8 @@ inline fn storeMat44(mat43: *const [12]f32, mat44: *[16]f32) void {
 
 // Observer callback
 fn onMonitorRenderable(it: *ecs.iter_t) callconv(.C) void {
+    const tracy_zone = ztracy.ZoneNC(@src(), "onMonitorRenderable", 0x00_00_00_ff);
+    defer tracy_zone.End();
     const ctx: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
 
     const renderables = ecs.field(it, fd.Renderable, 0).?;

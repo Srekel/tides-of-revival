@@ -106,6 +106,8 @@ pub fn destroy(ctx: ?*anyopaque) callconv(.C) void {
 }
 
 fn patchPropUpdateLoaders(it: *ecs.iter_t) callconv(.C) void {
+    const tracy_zone = ztracy.ZoneNC(@src(), "patchPropUpdateLoaders", 0x00_00_00_ff);
+    defer tracy_zone.End();
     const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
 
     const world_loaders = ecs.field(it, fd.WorldLoader, 0).?;
@@ -218,6 +220,8 @@ fn patchPropUpdateLoaders(it: *ecs.iter_t) callconv(.C) void {
 var added_spawn = false;
 
 fn patchPropUpdatePatches(it: *ecs.iter_t) callconv(.C) void {
+    const tracy_zone = ztracy.ZoneNC(@src(), "patchPropUpdatePatches", 0x00_00_00_ff);
+    defer tracy_zone.End();
     const system: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
     for (system.state.patches.items) |*patch| {
         if (patch.loaded) {

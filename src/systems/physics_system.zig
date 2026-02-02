@@ -376,6 +376,9 @@ pub fn destroy(ctx_opaque: ?*anyopaque) callconv(.C) void {
 const physics_skip_frame_rate = 1;
 var physics_skip_frame_counter: u32 = 1;
 fn updatePhysicsWorld(it: *ecs.iter_t) callconv(.C) void {
+    const tracy_zone = ztracy.ZoneNC(@src(), "updatePhysicsWorld", 0x00_00_00_ff);
+    defer tracy_zone.End();
+
     const ctx: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
     physics_skip_frame_counter += 1;
     if (physics_skip_frame_counter % physics_skip_frame_rate == 0) {
@@ -388,6 +391,8 @@ fn updatePhysicsWorld(it: *ecs.iter_t) callconv(.C) void {
 }
 
 fn updateCollisions(it: *ecs.iter_t) callconv(.C) void {
+    const tracy_zone = ztracy.ZoneNC(@src(), "updateCollisions", 0x00_00_00_ff);
+    defer tracy_zone.End();
     const ctx: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
     if (ctx.state.frame_contacts.items.len == 0) {
         return;
@@ -401,6 +406,8 @@ fn updateCollisions(it: *ecs.iter_t) callconv(.C) void {
 }
 
 fn updateFromBodies(it: *ecs.iter_t) callconv(.C) void {
+    const tracy_zone = ztracy.ZoneNC(@src(), "updateFromBodies", 0x00_00_00_ff);
+    defer tracy_zone.End();
     const ctx: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
 
     const bodies = ecs.field(it, fd.PhysicsBody, 0).?;
@@ -430,6 +437,8 @@ fn updateFromBodies(it: *ecs.iter_t) callconv(.C) void {
 }
 
 fn updateLoaders(it: *ecs.iter_t) callconv(.C) void {
+    const tracy_zone = ztracy.ZoneNC(@src(), "updateLoaders", 0x00_00_00_ff);
+    defer tracy_zone.End();
     const ctx: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
 
     const world_loaders = ecs.field(it, fd.WorldLoader, 0).?;
@@ -536,6 +545,8 @@ fn updateLoaders(it: *ecs.iter_t) callconv(.C) void {
 }
 
 fn updatePatches(it: *ecs.iter_t) callconv(.C) void {
+    const tracy_zone = ztracy.ZoneNC(@src(), "updatePatches", 0x00_00_00_ff);
+    defer tracy_zone.End();
     const ctx: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
     for (ctx.state.patches.items) |*patch| {
         if (patch.body_opt) |body| {
@@ -545,6 +556,8 @@ fn updatePatches(it: *ecs.iter_t) callconv(.C) void {
 
         const patch_info = ctx.world_patch_mgr.tryGetPatch(patch.lookup, patch_types.Heightmap);
         if (patch_info.data_opt) |data| {
+            const tracy_zone2 = ztracy.ZoneNC(@src(), "patch", 0x00_00_00_ff);
+            defer tracy_zone2.End();
             const world_pos = patch.lookup.getWorldPos();
 
             //  TODO: Use mesh (why though?)
@@ -583,6 +596,9 @@ fn updatePatches(it: *ecs.iter_t) callconv(.C) void {
 
             patch.shape_opt = shape;
             patch.body_opt = body_id;
+
+            // Only one per frame
+            break;
         }
     }
 }

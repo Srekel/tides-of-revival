@@ -19,6 +19,7 @@ const AK_ID = @import("wwise-ids");
 const context = @import("../../core/context.zig");
 const utility_scoring = @import("../../core/utility_scoring.zig");
 const im3d = @import("im3d");
+const ztracy = @import("ztracy");
 
 pub const StateContext = struct {
     pub usingnamespace context.CONTEXTIFY(@This());
@@ -279,6 +280,8 @@ fn playVoiceOver(ctx: *StateContext, pos: *fd.Position, rot: *fd.Rotation, fwd: 
 }
 
 fn playerStateIdle(it: *ecs.iter_t) callconv(.C) void {
+    const tracy_zone = ztracy.ZoneNC(@src(), "playerStateIdle", 0x00_00_00_ff);
+    defer tracy_zone.End();
     const ctx: *StateContext = @ptrCast(@alignCast(it.ctx));
 
     const inputs = ecs.field(it, fd.Input, 0).?;

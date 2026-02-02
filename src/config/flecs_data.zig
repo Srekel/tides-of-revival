@@ -775,6 +775,7 @@ pub const EnvironmentInfo = struct {
     player_camera: ?ecsu.Entity,
     journey_camera: ?ecsu.Entity,
     time_multiplier: f64 = 1.0,
+    journey_start: [3]f32 = undefined,
     journey_destination: [3]f32 = undefined,
     journey_time_multiplier: f64 = 1.0,
     journey_time_start: ?f64 = null,

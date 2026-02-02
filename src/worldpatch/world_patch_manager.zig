@@ -7,6 +7,7 @@ const AssetManager = @import("../core/asset_manager.zig").AssetManager;
 const util = @import("../util.zig");
 const config = @import("../config/config.zig");
 const debug_server = @import("../network/debug_server.zig");
+const ztracy = @import("ztracy");
 
 const DEBUG_LOGGING = false;
 
@@ -507,6 +508,9 @@ pub const WorldPatchManager = struct {
     }
 
     pub fn tickOne(self: *WorldPatchManager) void {
+        const trazy_zone = ztracy.ZoneNC(@src(), "WorldPatchManager", 0x00_00_00_ff);
+        defer trazy_zone.End();
+
         var patch_handle: PatchHandle = PatchHandle.nil;
         if (self.bucket_queue.popElems(util.sliceOfInstance(PatchHandle, &patch_handle)) > 0) {
             var patch = self.patch_pool.getColumnPtrAssumeLive(patch_handle, .patch);
