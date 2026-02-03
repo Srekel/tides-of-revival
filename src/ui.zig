@@ -1,6 +1,7 @@
 const std = @import("std");
 const renderer = @import("renderer/renderer.zig");
 const window = @import("renderer/window.zig");
+const ecs = @import("zflecs");
 const ecsu = @import("flecs_util/flecs_util.zig");
 const fd = @import("config/flecs_data.zig");
 const input = @import("input.zig");
@@ -28,12 +29,16 @@ const Text = struct {
 
 const UI = struct {
     logo_ent: ecsu.Entity,
-    intro_ent: ecsu.Entity,
 
+    intro_ent: ecsu.Entity,
     intro_text_ents: [intro.lines.len]ecsu.Entity,
+
+    outro_ent: ecsu.Entity,
+    outro_text_ents: [outro.lines.len]ecsu.Entity,
 
     main_window: *window.Window,
     ecsu_world: ecsu.World,
+    renderer_ctx: *renderer.Renderer,
 };
 
 var self: UI = undefined;
@@ -101,9 +106,31 @@ const intro: Text = .{
     },
 };
 
+const outro: Text = .{
+    .lines = &.{
+        .{
+            .text = "Tides of Revival",
+            .size = 72,
+            .anchor_x = 50,
+        },
+        .{
+            .text = "Hill 3: A Sense of Scale",
+            .size = 42,
+            .anchor_x = 90,
+            .line_height = 2,
+        },
+        .{
+            .size = 18,
+        },
+        .{ .text = "lol" },
+        .{ .text = "u ded" },
+    },
+};
+
 pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_world: ecsu.World) void {
     self.main_window = main_window;
     self.ecsu_world = ecsu_world;
+    self.renderer_ctx = renderer_ctx;
 
     const window_size_x: f32 = @floatFromInt(main_window.frame_buffer_size[0]);
     const window_size_y: f32 = @floatFromInt(main_window.frame_buffer_size[1]);
@@ -155,21 +182,64 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
 
         doText(intro, left + 50, bottom + 50, &self.intro_text_ents);
     }
+
+    // Outro
+    {
+        const texture_handle = renderer_ctx.loadTexture("textures/ui/intro.dds");
+        const texture = renderer_ctx.getTexture(texture_handle);
+        const width: f32 = @floatFromInt(texture[0].bitfield_1.mWidth);
+        const height: f32 = @floatFromInt(texture[0].bitfield_1.mHeight);
+
+        const left = window_size_x / 2 - width / 2;
+        const bottom = window_size_y / 2 - height / 2;
+
+        self.outro_ent = ecsu_world.newEntity();
+        self.outro_ent.set(fd.UIImage{
+            .rect = .{
+                .x = left,
+                .y = bottom,
+                .width = width,
+                .height = height,
+            },
+            .material = .{
+                .color = [4]f32{ 1, 1, 1, 0 },
+                .texture = texture_handle,
+            },
+        });
+
+        doText(outro, left + 50, bottom + 50, &self.outro_text_ents);
+    }
 }
 
 pub fn deinit() void {}
 
 pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
-    const left = @as(f32, @floatFromInt(self.main_window.frame_buffer_size[0])) - logo_margin - logo_size;
+    var debugself = self;
+    debugself.intro_ent = debugself.intro_ent;
+
+    const window_size_x: f32 = @floatFromInt(self.main_window.frame_buffer_size[0]);
+    const window_size_y: f32 = @floatFromInt(self.main_window.frame_buffer_size[1]);
+
+    const big_window_texture_handle = self.renderer_ctx.loadTexture("textures/ui/intro.dds");
+    const big_window_texture = self.renderer_ctx.getTexture(big_window_texture_handle);
+    const big_window_width: f32 = @floatFromInt(big_window_texture[0].bitfield_1.mWidth);
+    const big_window_height: f32 = @floatFromInt(big_window_texture[0].bitfield_1.mHeight);
+    const big_window_left = window_size_x / 2 - big_window_width / 2;
+    const big_window_bottom = window_size_y / 2 - big_window_height / 2;
 
     // LOGO
-    const logo = self.logo_ent.getMut(fd.UIImage).?;
-    logo.rect.x = left;
-    logo.rect.y = @as(f32, @floatFromInt(self.main_window.frame_buffer_size[1])) - logo_margin - logo_size;
+    {
+        const logo = self.logo_ent.getMut(fd.UIImage).?;
+        logo.rect.x = window_size_x - logo_margin - logo_size;
+        logo.rect.y = window_size_y - logo_margin - logo_size;
+    }
 
     // Intro
     if (self.intro_text_ents[0].id != 0) {
         const intro_image = self.intro_ent.getMut(fd.UIImage).?;
+        intro_image.rect.x = big_window_left;
+        intro_image.rect.y = big_window_bottom;
+
         if (input_frame_data.just_pressed(config.input.wielded_use_primary)) {
             self.ecsu_world.delete(self.intro_ent.id);
             for (self.intro_text_ents) |ent| {
@@ -195,4 +265,34 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
             }
         }
     }
+
+    // Outro
+    // const player_ent = ecs.lookup(self.ecsu_world.world, "main_player");
+    // const player_health = ecs.get(self.ecsu_world.world, player_ent, fd.Health).?;
+    // _ = player_health; // autofix
+    // // std.log.warn("lol1 {} {}", .{ self.intro_text_ents[0].id, player_health.value });
+    // // if (self.intro_text_ents[0].id == 0 and player_health.value == 100) {
+    // if (self.intro_text_ents[0].id == 0) {
+    //     const outro_image = self.outro_ent.getMut(fd.UIImage).?;
+    //     outro_image.rect.x = big_window_left;
+    //     outro_image.rect.y = big_window_bottom;
+
+    //     // std.log.warn("lol2 {} {}", .{ self.intro_text_ents[0].id, player_health.value });
+    //     if (outro_image.material.color[3] < 1) {
+    //         outro_image.material.color[3] = @min(1, outro_image.material.color[3] + dt * 4);
+    //     } else {
+    //         for (self.outro_text_ents) |ent| {
+    //             const text = ent.getMut(fd.UIText).?;
+    //             if (text.shadow_color[3] < 1.0) {
+    //                 text.text_color[3] = 1;
+    //                 text.shadow_color[3] = @min(1, text.shadow_color[3] + dt * 2.5);
+    //                 text.shadow_blur = @min(text.font_size / 5, text.shadow_blur + dt * 20);
+    //                 for (0..3) |i| {
+    //                     text.text_color[i] = std.math.lerp(outro.color_start[i], outro.color_end[i], text.shadow_color[3]);
+    //                 }
+    //                 break;
+    //             }
+    //         }
+    //     }
+    // }
 }
