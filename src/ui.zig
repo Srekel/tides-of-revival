@@ -33,8 +33,11 @@ const UI = struct {
     intro_ent: ecsu.Entity = .{},
     intro_text_ents: [intro.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** intro.lines.len,
 
-    outro_ent: ecsu.Entity = .{},
-    outro_text_ents: [outro.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** outro.lines.len,
+    outro_game_over_ent: ecsu.Entity = .{},
+    outro_game_over_text_ents: [outro_game_over.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** outro_game_over.lines.len,
+
+    outro_win_ent: ecsu.Entity = .{},
+    outro_win_text_ents: [outro_win.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** outro_win.lines.len,
 
     main_window: *window.Window = undefined,
     ecsu_world: ecsu.World = undefined,
@@ -112,7 +115,7 @@ const intro: Text = .{
     },
 };
 
-const outro: Text = .{
+const outro_game_over: Text = .{
     .lines = &.{
         .{
             .text = "Tides of Revival",
@@ -120,16 +123,41 @@ const outro: Text = .{
             .anchor_x = 50,
         },
         .{
-            .text = "Hill 3: A Sense of Scale",
+            .text = "Game Over!",
             .size = 42,
-            .anchor_x = 90,
+            .anchor_x = 195,
             .line_height = 2,
         },
         .{
             .size = 18,
         },
-        .{ .text = "lol" },
-        .{ .text = "u ded" },
+        .{ .text = "You succumed to the beast." },
+        .{ .text = "" },
+        .{ .text = "Restart the game to try again... if you dare!" },
+        .{ .text = "" },
+        .{ .text = "[Press C for credits]" },
+    },
+};
+
+const outro_win: Text = .{
+    .lines = &.{
+        .{
+            .text = "Tides of Revival",
+            .size = 72,
+            .anchor_x = 50,
+        },
+        .{
+            .text = "You won!",
+            .size = 42,
+            .anchor_x = 195,
+            .line_height = 2,
+        },
+        .{
+            .size = 18,
+        },
+        .{ .text = "You slayed the beast, and the villages complete their road!." },
+        .{ .text = "" },
+        .{ .text = "[Press C for credits]" },
     },
 };
 
@@ -199,8 +227,8 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
         const left = window_size_x / 2 - width / 2;
         const bottom = window_size_y / 2 - height / 2;
 
-        self.outro_ent = ecsu_world.newEntity();
-        self.outro_ent.set(fd.UIImage{
+        self.outro_game_over_ent = ecsu_world.newEntity();
+        self.outro_game_over_ent.set(fd.UIImage{
             .rect = .{
                 .x = left,
                 .y = bottom,
@@ -213,7 +241,32 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
             },
         });
 
-        doText(outro, left + 50, bottom + 50, &self.outro_text_ents);
+        doText(outro_game_over, left + 50, bottom + 50, &self.outro_game_over_text_ents);
+    }
+    {
+        const texture_handle = renderer_ctx.loadTexture("textures/ui/intro.dds");
+        const texture = renderer_ctx.getTexture(texture_handle);
+        const width: f32 = @floatFromInt(texture[0].bitfield_1.mWidth);
+        const height: f32 = @floatFromInt(texture[0].bitfield_1.mHeight);
+
+        const left = window_size_x / 2 - width / 2;
+        const bottom = window_size_y / 2 - height / 2;
+
+        self.outro_win_ent = ecsu_world.newEntity();
+        self.outro_win_ent.set(fd.UIImage{
+            .rect = .{
+                .x = left,
+                .y = bottom,
+                .width = width,
+                .height = height,
+            },
+            .material = .{
+                .color = [4]f32{ 1, 1, 1, 0 },
+                .texture = texture_handle,
+            },
+        });
+
+        doText(outro_win, left + 50, bottom + 50, &self.outro_win_text_ents);
     }
 }
 
@@ -274,33 +327,82 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
     }
 
     // Outro
-    const player_ent = ecs.lookup(self.ecsu_world.world, "main_player");
-    const player_health = ecs.get(self.ecsu_world.world, player_ent, fd.Health).?;
-    // std.log.warn("lol1 {} {}", .{ self.intro_text_ents[0].id, player_health.value });
-    if (self.intro_text_ents[0].id == 0 and player_health.value == 0) {
-        // if (self.intro_text_ents[0].id == 0) {
-        const outro_image = self.outro_ent.getMut(fd.UIImage).?;
+    if (self.intro_text_ents[0].id == 0) {
+        const outro_image = self.outro_game_over_ent.getMut(fd.UIImage).?;
         outro_image.rect.x = big_window_left;
         outro_image.rect.y = big_window_bottom;
-        doText(outro, big_window_left + 50, big_window_bottom + 50, &self.outro_text_ents);
 
-        // std.log.warn("lol2 {} {}", .{ self.intro_text_ents[0].id, player_health.value });
-        const environment_info = self.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
-        if (environment_info.active_camera.?.id != environment_info.player_camera.?.id) {
-            outro_image.material.color[3] = @max(0, outro_image.material.color[3] - dt * 4);
-        } else if (outro_image.material.color[3] < 1) {
-            outro_image.material.color[3] = @min(1, outro_image.material.color[3] + dt * 4);
-        } else {
-            for (self.outro_text_ents) |ent| {
-                const text = ent.getMut(fd.UIText).?;
-                if (text.shadow_color[3] < 1.0) {
-                    text.text_color[3] = 1;
-                    text.shadow_color[3] = @min(1, text.shadow_color[3] + dt * 2.5);
-                    text.shadow_blur = @min(text.font_size / 5, text.shadow_blur + dt * 20);
-                    for (0..3) |i| {
-                        text.text_color[i] = std.math.lerp(outro.color_start[i], outro.color_end[i], text.shadow_color[3]);
+        const player_ent = ecs.lookup(self.ecsu_world.world, "main_player");
+        const player_health = ecs.get(self.ecsu_world.world, player_ent, fd.Health).?;
+        if (player_health.value == 0) {
+            doText(outro_game_over, big_window_left + 50, big_window_bottom + 50, &self.outro_game_over_text_ents);
+
+            // std.log.warn("lol2 {} {}", .{ self.intro_text_ents[0].id, player_health.value });
+            const environment_info = self.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+            if (environment_info.active_camera.?.id != environment_info.player_camera.?.id) {
+                outro_image.material.color[3] = @max(0, outro_image.material.color[3] - dt * 4);
+            } else if (outro_image.material.color[3] < 1) {
+                outro_image.material.color[3] = @min(1, outro_image.material.color[3] + dt * 4);
+            } else {
+                for (self.outro_game_over_text_ents) |ent| {
+                    const text = ent.getMut(fd.UIText).?;
+                    if (text.shadow_color[3] < 1.0) {
+                        text.text_color[3] = 1;
+                        text.shadow_color[3] = @min(1, text.shadow_color[3] + dt * 2.5);
+                        text.shadow_blur = @min(text.font_size / 5, text.shadow_blur + dt * 20);
+                        for (0..3) |i| {
+                            text.text_color[i] = std.math.lerp(outro_game_over.color_start[i], outro_game_over.color_end[i], text.shadow_color[3]);
+                        }
+                        break;
                     }
-                    break;
+                }
+            }
+        } else {
+            const query = ecs.query_init(self.ecsu_world.world, &.{
+                .terms = [_]ecs.term_t{
+                    .{ .id = ecs.id(fd.Enemy), .inout = .In },
+                    .{ .id = ecs.id(fd.Health), .inout = .In },
+                } ++ ecs.array(ecs.term_t, ecs.FLECS_TERM_COUNT_MAX - 2),
+            }) catch unreachable;
+
+            var query_iter = ecs.query_iter(self.ecsu_world.world, query);
+            const slime_alive = blk: {
+                while (ecs.query_next(&query_iter)) {
+                    const enemies = ecs.field(&query_iter, fd.Enemy, 0).?;
+                    const healths = ecs.field(&query_iter, fd.Health, 1).?;
+                    for (enemies, healths, query_iter.entities()) |enemy, health, ent| {
+                        _ = enemy; // autofix
+                        _ = ent; // autofix
+                        if (health.value > 0) {
+                            ecs.iter_fini(&query_iter);
+                            break :blk true;
+                        }
+                    }
+                }
+                break :blk false;
+            };
+
+            if (!slime_alive or true) {
+                doText(outro_win, big_window_left + 50, big_window_bottom + 50, &self.outro_win_text_ents);
+
+                const environment_info = self.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+                if (environment_info.active_camera.?.id != environment_info.player_camera.?.id) {
+                    outro_image.material.color[3] = @max(0, outro_image.material.color[3] - dt * 4);
+                } else if (outro_image.material.color[3] < 1) {
+                    outro_image.material.color[3] = @min(1, outro_image.material.color[3] + dt * 4);
+                } else {
+                    for (self.outro_win_text_ents) |ent| {
+                        const text = ent.getMut(fd.UIText).?;
+                        if (text.shadow_color[3] < 1.0) {
+                            text.text_color[3] = 1;
+                            text.shadow_color[3] = @min(1, text.shadow_color[3] + dt * 2.5);
+                            text.shadow_blur = @min(text.font_size / 5, text.shadow_blur + dt * 20);
+                            for (0..3) |i| {
+                                text.text_color[i] = std.math.lerp(outro_win.color_start[i], outro_win.color_end[i], text.shadow_color[3]);
+                            }
+                            break;
+                        }
+                    }
                 }
             }
         }
