@@ -738,7 +738,9 @@ pub const TerrainPass = struct {
                 .{ node.mesh_lod, node.patch_index[0], node.patch_index[1] },
             ) catch unreachable;
 
+            const trazy_zone = ztracy.ZoneNC(@src(), "loadTextureFromMemory", 0x00_ff_ff_00);
             node.heightmap_handle = self.renderer.loadTextureFromMemory(65, 65, .R32_SFLOAT, data_slice, debug_name);
+            defer trazy_zone.End();
         }
     }
 };

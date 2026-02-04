@@ -471,7 +471,7 @@ fn updateLoaders(it: *ecs.iter_t) callconv(.C) void {
         };
 
         const pos_new = position.elemsConst().*;
-        const trigger_dist: f32 = if (ctx.state.is_low) 256 else 32;
+        const trigger_dist: f32 = if (ctx.state.is_low) 256 * 256 else 32;
         if (tides_math.dist3_xz(pos_new, loader.pos_old) < trigger_dist) {
             continue;
         }
@@ -545,16 +545,26 @@ fn updateLoaders(it: *ecs.iter_t) callconv(.C) void {
 }
 
 fn updatePatches(it: *ecs.iter_t) callconv(.C) void {
-    const tracy_zone = ztracy.ZoneNC(@src(), "updatePatches", 0x00_00_00_ff);
-    defer tracy_zone.End();
     const ctx: *SystemUpdateContext = @alignCast(@ptrCast(it.ctx.?));
+    const tracy_zone = ztracy.ZoneNC(@src(), if (ctx.state.is_low) "updatePatchesLow" else "updatePatches", 0x00_00_00_ff);
+    defer tracy_zone.End();
+
     for (ctx.state.patches.items) |*patch| {
         if (patch.body_opt) |body| {
             _ = body;
             continue;
         }
 
+        if (patch.lookup.lod == 0 and ctx.state.is_low) {
+            continue;
+        }
+
+        if (patch.lookup.lod == config.lowest_lod and !ctx.state.is_low) {
+            continue;
+        }
+
         const patch_info = ctx.world_patch_mgr.tryGetPatch(patch.lookup, patch_types.Heightmap);
+
         if (patch_info.data_opt) |data| {
             const tracy_zone2 = ztracy.ZoneNC(@src(), "patch", 0x00_00_00_ff);
             defer tracy_zone2.End();
@@ -597,8 +607,10 @@ fn updatePatches(it: *ecs.iter_t) callconv(.C) void {
             patch.shape_opt = shape;
             patch.body_opt = body_id;
 
-            // Only one per frame
-            break;
+            if (!ctx.state.is_low) {
+                // Only one per frame
+                break;
+            }
         }
     }
 }
