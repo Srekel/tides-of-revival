@@ -527,7 +527,7 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
         has_initial_sim = true;
     }
 
-    const time_scale = environment_info.time_multiplier * environment_info.journey_time_multiplier * debug_multiplier;
+    var time_scale = environment_info.time_multiplier * environment_info.journey_time_multiplier * debug_multiplier;
     const dt_game = dt * time_scale;
     environment_info.time_multiplier = 1;
 
@@ -658,6 +658,13 @@ fn update(gameloop_context: GameloopContext, dt: f32) void {
     // AK.SoundEngine.renderAudio(false) catch unreachable;
     const ecs_trazy_zone = ztracy.ZoneNC(@src(), "ecs", 0x00_00_00_ff);
     defer ecs_trazy_zone.End();
+
+    const player_ent = ecs.lookup(gameloop_context.ecsu_world.world, "main_player");
+    const player_health = ecs.get(gameloop_context.ecsu_world.world, player_ent, fd.Health).?;
+    if (player_health.value == 0 and environment_info.active_camera.?.id == environment_info.player_camera.?.id) {
+        time_scale = 0;
+    }
+
     ecs.set_time_scale(gameloop_context.ecsu_world.world, @floatCast(time_scale));
     ecsu_world.progress(@floatCast(dt));
 }

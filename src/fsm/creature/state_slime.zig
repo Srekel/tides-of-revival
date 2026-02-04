@@ -372,6 +372,15 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                     environment_info.journey_state != .not,
                     environment_info.world_time,
                 );
+
+                const player_pos_z = player_pos.asZM();
+                const self_pos_z = zm.loadArr3(pos.elems().*);
+                const vec_to_player = player_pos_z - self_pos_z;
+                const dist_to_player_sq = zm.lengthSq3(vec_to_player)[0];
+                if (dist_to_player_sq < 1) {
+                    std.log.warn("gameover", .{});
+                    _ = ecs.set(ctx.ecsu_world.world, player_ent, fd.Health, fd.Health{ .value = 0 });
+                }
             }
 
             if (locomotion.sfx_footstep_next_time < environment_info.world_time) {

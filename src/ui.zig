@@ -28,39 +28,45 @@ const Text = struct {
 };
 
 const UI = struct {
-    logo_ent: ecsu.Entity,
+    logo_ent: ecsu.Entity = .{},
 
-    intro_ent: ecsu.Entity,
-    intro_text_ents: [intro.lines.len]ecsu.Entity,
+    intro_ent: ecsu.Entity = .{},
+    intro_text_ents: [intro.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** intro.lines.len,
 
-    outro_ent: ecsu.Entity,
-    outro_text_ents: [outro.lines.len]ecsu.Entity,
+    outro_ent: ecsu.Entity = .{},
+    outro_text_ents: [outro.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** outro.lines.len,
 
-    main_window: *window.Window,
-    ecsu_world: ecsu.World,
-    renderer_ctx: *renderer.Renderer,
+    main_window: *window.Window = undefined,
+    ecsu_world: ecsu.World = undefined,
+    renderer_ctx: *renderer.Renderer = undefined,
 };
 
-var self: UI = undefined;
+var self: UI = .{};
 
 fn doText(text: Text, left: f32, bottom_base: f32, entities: []ecsu.Entity) void {
     var bottom = bottom_base;
     var size = text.size;
     for (text.lines, 0..) |line, i| {
         size = if (line.size > 0) line.size else size;
-        entities[i] = self.ecsu_world.newEntity();
-        entities[i].set(fd.UIText{
-            .left = left + line.anchor_x,
-            .bottom = bottom,
-            .font_size = size,
-            .text_color = text.color_start,
-            .shadow_color = text.shadow_color,
-            .shadow = true,
-            .shadow_blur = 0,
-            .shadow_offset_x = 0,
-            .shadow_offset_y = 0,
-            .text = line.text,
-        });
+        if (entities[i].id == 0) {
+            entities[i] = self.ecsu_world.newEntity();
+            entities[i].set(fd.UIText{
+                .left = left + line.anchor_x,
+                .bottom = bottom,
+                .font_size = size,
+                .text_color = text.color_start,
+                .shadow_color = text.shadow_color,
+                .shadow = true,
+                .shadow_blur = 0,
+                .shadow_offset_x = 0,
+                .shadow_offset_y = 0,
+                .text = line.text,
+            });
+        } else {
+            var uitext = entities[i].getMut(fd.UIText).?;
+            uitext.left = left + line.anchor_x;
+            uitext.bottom = bottom;
+        }
 
         bottom += size * line.line_height;
     }
@@ -239,6 +245,7 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
         const intro_image = self.intro_ent.getMut(fd.UIImage).?;
         intro_image.rect.x = big_window_left;
         intro_image.rect.y = big_window_bottom;
+        doText(intro, big_window_left + 50, big_window_bottom + 50, &self.intro_text_ents);
 
         if (input_frame_data.just_pressed(config.input.wielded_use_primary)) {
             self.ecsu_world.delete(self.intro_ent.id);
@@ -267,32 +274,35 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
     }
 
     // Outro
-    // const player_ent = ecs.lookup(self.ecsu_world.world, "main_player");
-    // const player_health = ecs.get(self.ecsu_world.world, player_ent, fd.Health).?;
-    // _ = player_health; // autofix
-    // // std.log.warn("lol1 {} {}", .{ self.intro_text_ents[0].id, player_health.value });
-    // // if (self.intro_text_ents[0].id == 0 and player_health.value == 100) {
-    // if (self.intro_text_ents[0].id == 0) {
-    //     const outro_image = self.outro_ent.getMut(fd.UIImage).?;
-    //     outro_image.rect.x = big_window_left;
-    //     outro_image.rect.y = big_window_bottom;
+    const player_ent = ecs.lookup(self.ecsu_world.world, "main_player");
+    const player_health = ecs.get(self.ecsu_world.world, player_ent, fd.Health).?;
+    // std.log.warn("lol1 {} {}", .{ self.intro_text_ents[0].id, player_health.value });
+    if (self.intro_text_ents[0].id == 0 and player_health.value == 0) {
+        // if (self.intro_text_ents[0].id == 0) {
+        const outro_image = self.outro_ent.getMut(fd.UIImage).?;
+        outro_image.rect.x = big_window_left;
+        outro_image.rect.y = big_window_bottom;
+        doText(outro, big_window_left + 50, big_window_bottom + 50, &self.outro_text_ents);
 
-    //     // std.log.warn("lol2 {} {}", .{ self.intro_text_ents[0].id, player_health.value });
-    //     if (outro_image.material.color[3] < 1) {
-    //         outro_image.material.color[3] = @min(1, outro_image.material.color[3] + dt * 4);
-    //     } else {
-    //         for (self.outro_text_ents) |ent| {
-    //             const text = ent.getMut(fd.UIText).?;
-    //             if (text.shadow_color[3] < 1.0) {
-    //                 text.text_color[3] = 1;
-    //                 text.shadow_color[3] = @min(1, text.shadow_color[3] + dt * 2.5);
-    //                 text.shadow_blur = @min(text.font_size / 5, text.shadow_blur + dt * 20);
-    //                 for (0..3) |i| {
-    //                     text.text_color[i] = std.math.lerp(outro.color_start[i], outro.color_end[i], text.shadow_color[3]);
-    //                 }
-    //                 break;
-    //             }
-    //         }
-    //     }
-    // }
+        // std.log.warn("lol2 {} {}", .{ self.intro_text_ents[0].id, player_health.value });
+        const environment_info = self.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+        if (environment_info.active_camera.?.id != environment_info.player_camera.?.id) {
+            outro_image.material.color[3] = @max(0, outro_image.material.color[3] - dt * 4);
+        } else if (outro_image.material.color[3] < 1) {
+            outro_image.material.color[3] = @min(1, outro_image.material.color[3] + dt * 4);
+        } else {
+            for (self.outro_text_ents) |ent| {
+                const text = ent.getMut(fd.UIText).?;
+                if (text.shadow_color[3] < 1.0) {
+                    text.text_color[3] = 1;
+                    text.shadow_color[3] = @min(1, text.shadow_color[3] + dt * 2.5);
+                    text.shadow_blur = @min(text.font_size / 5, text.shadow_blur + dt * 20);
+                    for (0..3) |i| {
+                        text.text_color[i] = std.math.lerp(outro.color_start[i], outro.color_end[i], text.shadow_color[3]);
+                    }
+                    break;
+                }
+            }
+        }
+    }
 }

@@ -3,8 +3,8 @@ const ecs = @import("zflecs");
 const ecsu = @import("flecs_util.zig");
 
 pub const Entity = struct {
-    world: *ecs.world_t,
-    id: ecs.entity_t,
+    world: *ecs.world_t = undefined,
+    id: ecs.entity_t = 0,
 
     pub fn init(world: *ecs.world_t, id: ecs.entity_t) Entity {
         return .{
