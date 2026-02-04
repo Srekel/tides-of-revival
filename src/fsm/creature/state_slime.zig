@@ -629,6 +629,15 @@ const SplitIfNearPlayer = struct {
             return .valid;
         }
 
+        const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+        if (environment_info.rest_state != .not) {
+            return .reschedule;
+        }
+
+        if (environment_info.journey_state != .not) {
+            return .reschedule;
+        }
+
         const player_ent = ecs.lookup(ctx.ecsu_world.world, "main_player");
         const player_pos = ecs.get(ctx.ecsu_world.world, player_ent, fd.Position).?;
         const self_pos = ecs.get(ctx.ecsu_world.world, self.entity, fd.Position).?;
