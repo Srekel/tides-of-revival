@@ -596,7 +596,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     };
                     const query = physics_world_low.getNarrowPhaseQuery();
                     const ms_result = query.castRay(ms_ray, .{});
-                    if (!ms_result.has_hit) {
+                    if (!ms_result.has_hit and dist_to_slime < 5000) {
                         dist_to_slime *= 0.5;
                         const journey_cam_transform = environment_info.journey_camera.?.get(fd.Transform).?;
                         const cam_right = zm.util.getAxisX(journey_cam_transform.asZM());
