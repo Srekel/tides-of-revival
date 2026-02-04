@@ -382,7 +382,7 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
                 break :blk false;
             };
 
-            if (!slime_alive or true) {
+            if (!slime_alive) {
                 doText(outro_win, big_window_left + 50, big_window_bottom + 50, &self.outro_win_text_ents);
 
                 const environment_info = self.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
