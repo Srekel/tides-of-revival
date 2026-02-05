@@ -81,9 +81,15 @@ pub const Renderer = struct {
     frame_index: u32 = 0,
     profiler: profiler.Profiler = undefined,
     gpu_frame_profile_index: usize = 0,
+    gpu_shadow_profile_index: usize = 0,
+    gpu_skybox_profile_index: usize = 0,
+    gpu_procedural_skybox_profile_index: usize = 0,
     gpu_terrain_pass_profile_index: usize = 0,
     gpu_geometry_pass_profile_index: usize = 0,
     gpu_gpu_driven_pass_profile_index: usize = 0,
+    gpu_deferred_profile_index: usize = 0,
+    gpu_water_profile_index: usize = 0,
+    gpu_post_processing_profile_index: usize = 0,
 
     // Debug Line Buffers
     debug_frame_uniform_buffers: [data_buffer_count]BufferHandle = undefined,
@@ -885,8 +891,8 @@ pub const Renderer = struct {
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Shadow Map Pass", 0x00_ff_00_00);
             defer trazy_zone1.End();
 
-            const shadow_profile_index = self.startGpuProfile(cmd_list, "Shadow Maps");
-            defer self.endGpuProfile(cmd_list, shadow_profile_index);
+            self.gpu_shadow_profile_index = self.startGpuProfile(cmd_list, "Shadow Maps");
+            defer self.endGpuProfile(cmd_list, self.gpu_shadow_profile_index);
 
             for (0..cascades_max_count) |cascade_index| {
                 var profile_name_buffer: [256]u8 = undefined;
@@ -971,8 +977,8 @@ pub const Renderer = struct {
 
         // Compute: Generate Procedural Skybox
         {
-            const profile_index = self.startGpuProfile(cmd_list, "Compute Procedural Skybox");
-            defer self.endGpuProfile(cmd_list, profile_index);
+            self.gpu_procedural_skybox_profile_index = self.startGpuProfile(cmd_list, "Compute Procedural Skybox");
+            defer self.endGpuProfile(cmd_list, self.gpu_procedural_skybox_profile_index);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Compute Procedural Skybox", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -984,8 +990,8 @@ pub const Renderer = struct {
 
         // Deferred Shading
         {
-            const profile_index = self.startGpuProfile(cmd_list, "Deferred Shading");
-            defer self.endGpuProfile(cmd_list, profile_index);
+            self.gpu_deferred_profile_index = self.startGpuProfile(cmd_list, "Deferred Shading");
+            defer self.endGpuProfile(cmd_list, self.gpu_deferred_profile_index);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Deferred Shading", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -1017,8 +1023,8 @@ pub const Renderer = struct {
 
         // Graphics: Draw Procedural Skybox
         {
-            const profile_index = self.startGpuProfile(cmd_list, "Draw Procedural Skybox");
-            defer self.endGpuProfile(cmd_list, profile_index);
+            self.gpu_skybox_profile_index = self.startGpuProfile(cmd_list, "Draw Procedural Skybox");
+            defer self.endGpuProfile(cmd_list, self.gpu_skybox_profile_index);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Draw Procedural Skybox", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -1030,8 +1036,8 @@ pub const Renderer = struct {
 
         // Water Pass
         {
-            const profile_index = self.startGpuProfile(cmd_list, "Water");
-            defer self.endGpuProfile(cmd_list, profile_index);
+            self.gpu_water_profile_index = self.startGpuProfile(cmd_list, "Water");
+            defer self.endGpuProfile(cmd_list, self.gpu_water_profile_index);
 
             const trazy_zone1 = ztracy.ZoneNC(@src(), "Water", 0x00_ff_00_00);
             defer trazy_zone1.End();
@@ -1044,8 +1050,8 @@ pub const Renderer = struct {
         // Post Processing
         if (self.selected_visualization_mode == -1) {
             {
-                const profile_index = self.startGpuProfile(cmd_list, "Post");
-                defer self.endGpuProfile(cmd_list, profile_index);
+                self.gpu_post_processing_profile_index = self.startGpuProfile(cmd_list, "Post");
+                defer self.endGpuProfile(cmd_list, self.gpu_post_processing_profile_index);
 
                 const trazy_zone1 = ztracy.ZoneNC(@src(), "Post Processing", 0x00_ff_00_00);
                 defer trazy_zone1.End();
@@ -1307,9 +1313,14 @@ pub const Renderer = struct {
             {
                 if (zgui.collapsingHeader("Performance", .{ .default_open = true })) {
                     zgui.text("GPU Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_frame_profile_index)});
+                    zgui.text("Shadow Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_shadow_profile_index)});
                     zgui.text("Terrain Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_terrain_pass_profile_index)});
-                    zgui.text("Geometry Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_geometry_pass_profile_index)});
-                    zgui.text("GPU-Driven Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_gpu_driven_pass_profile_index)});
+                    zgui.text("Dynamic Geometry Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_geometry_pass_profile_index)});
+                    zgui.text("Static Geometry Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_gpu_driven_pass_profile_index)});
+                    zgui.text("Compute Skybox Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_procedural_skybox_profile_index)});
+                    zgui.text("Draw Skybox Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_skybox_profile_index)});
+                    zgui.text("Deferred Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_deferred_profile_index)});
+                    zgui.text("Water Pass Average time: {d}", .{self.getProfilerAvgTimeMs(self.gpu_water_profile_index)});
                 }
             }
 
