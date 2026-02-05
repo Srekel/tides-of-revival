@@ -1134,7 +1134,6 @@ pub const Renderer = struct {
             graphics.cmdDraw(cmd_list, 3, 0);
         }
 
-
         // UI Overlay
         {
             var rt_barriers = [_]graphics.RenderTargetBarrier{
@@ -1638,7 +1637,7 @@ pub const Renderer = struct {
         return self.renderable_map.get(id.hash).?;
     }
 
-    pub fn loadMaterial(self: *Renderer, material_id: IdLocal, material_data: UberShaderMaterialData) !void {
+    pub fn loadMaterial(self: *Renderer, material_id: IdLocal.HashType, material_data: UberShaderMaterialData) !void {
         var gpu_material: GpuMaterial = undefined;
         gpu_material.albedo_color[0] = material_data.base_color.r;
         gpu_material.albedo_color[1] = material_data.base_color.g;
@@ -1686,22 +1685,22 @@ pub const Renderer = struct {
             .gbuffer_pipeline_id = material_data.gbuffer_pipeline_id,
         };
 
-        self.material_map.put(material_id.hash, .{ .index = self.material_buffer.element_count, .pipeline_ids = pipeline_ids, .alpha_test = material_data.alpha_test }) catch unreachable;
+        self.material_map.put(material_id, .{ .index = self.material_buffer.element_count, .pipeline_ids = pipeline_ids, .alpha_test = material_data.alpha_test }) catch unreachable;
         self.material_buffer.element_count += 1;
     }
 
-    pub fn getMaterialIndex(self: *Renderer, material_id: IdLocal) usize {
-        const material_info = self.material_map.get(material_id.hash).?;
+    pub fn getMaterialIndex(self: *Renderer, material_id: IdLocal.HashType) usize {
+        const material_info = self.material_map.get(material_id).?;
         return material_info.index;
     }
 
-    pub fn getMaterialAlphaTest(self: *Renderer, material_id: IdLocal) bool {
-        const material_data = self.material_map.get(material_id.hash);
+    pub fn getMaterialAlphaTest(self: *Renderer, material_id: IdLocal.HashType) bool {
+        const material_data = self.material_map.get(material_id);
         return material_data.?.alpha_test;
     }
 
-    pub fn getMaterialPipelineIds(self: *Renderer, material_id: IdLocal) PassPipelineIds {
-        const material_data = self.material_map.get(material_id.hash);
+    pub fn getMaterialPipelineIds(self: *Renderer, material_id: IdLocal.HashType) PassPipelineIds {
+        const material_data = self.material_map.get(material_id);
         return material_data.?.pipeline_ids;
     }
 
@@ -2646,7 +2645,7 @@ pub const RenderableDesc = struct {
 
 pub const RenderableLod = struct {
     mesh_id: IdLocal,
-    materials: [materials_per_renderable_max_count]IdLocal,
+    materials: [materials_per_renderable_max_count]IdLocal.HashType,
     materials_count: u32,
     screen_percentage_range: [2]f32,
 };

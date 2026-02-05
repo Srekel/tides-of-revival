@@ -16,6 +16,8 @@ const resource_loader = zforge.resource_loader;
 const InstanceData = renderer_types.InstanceData;
 const InstanceRootConstants = renderer_types.InstanceRootConstants;
 
+const giuseppedebugging = false;
+
 pub const UniformFrameData = struct {
     projection_view: [16]f32,
     projection_view_inverted: [16]f32,
@@ -34,7 +36,7 @@ const Batch = struct {
 };
 
 const BatchKey = struct {
-    material_id: IdLocal,
+    material_id: IdLocal.HashType,
     mesh_handle: renderer.LegacyMeshHandle,
     sub_mesh_index: u32,
     surface_type: renderer.SurfaceType,
@@ -117,8 +119,10 @@ pub const DynamicGeometryPass = struct {
         }
 
         self.gbuffer_batches = BatchMap.init(allocator);
+        self.gbuffer_batches.ensureTotalCapacity(32) catch unreachable;
         for (0..renderer.Renderer.cascades_max_count) |i| {
             self.shadow_map_batches[i] = BatchMap.init(allocator);
+            self.shadow_map_batches[i].ensureTotalCapacity(32) catch unreachable;
         }
     }
 
@@ -578,6 +582,8 @@ pub const DynamicGeometryPass = struct {
 
         // Clear existing batches' instances
         {
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "Clear", 0x00_ff_ff_00);
+            defer trazy_zone2.End();
             var batch_keys_iterator = batch_map.keyIterator();
             while (batch_keys_iterator.next()) |batch_key| {
                 const batch = batch_map.getPtr(batch_key.*).?;
@@ -589,13 +595,15 @@ pub const DynamicGeometryPass = struct {
         const max_draw_distance_squared = max_draw_distance * max_draw_distance;
 
         for (self.renderer.dynamic_entities.items) |dynamic_entity| {
-            var lod = dynamic_entity.lods[0];
+            var lod: *const renderer_types.Lod = &dynamic_entity.lods[0];
             var sub_mesh_count = lod.materials_count;
             if (sub_mesh_count == 0) {
                 continue;
             }
 
             {
+                const trazy_zone2 = ztracy.ZoneNC(@src(), "culling", 0x00_ff_ff_00);
+                defer trazy_zone2.End();
                 // Distance culling
                 if (!isWithinCameraDrawDistance(camera_position, dynamic_entity.position, max_draw_distance_squared)) {
                     continue;
@@ -612,10 +620,14 @@ pub const DynamicGeometryPass = struct {
             }
 
             // LOD Selection
+            const trazy_zone2 = ztracy.ZoneNC(@src(), "selectlod", 0x00_ff_ff_00);
             lod = selectLOD(dynamic_entity.lods[0..dynamic_entity.lod_count], camera_position, dynamic_entity.position);
             sub_mesh_count = lod.materials_count;
+            trazy_zone2.End();
 
             {
+                const trazy_zone3 = ztracy.ZoneNC(@src(), "batch", 0x00_ff_ff_00);
+                defer trazy_zone3.End();
                 for (0..sub_mesh_count) |sub_mesh_index| {
                     const material_id = lod.materials[sub_mesh_index];
 
@@ -633,20 +645,21 @@ pub const DynamicGeometryPass = struct {
 
                     var instance_data: InstanceData = undefined;
                     zm.storeMat(&instance_data.object_to_world, dynamic_entity.world);
-                    zm.storeMat(&instance_data.world_to_object, zm.inverse(dynamic_entity.world));
                     instance_data.material_index = @intCast(material_index);
-                    instance_data._padding = [3]f32{ 42.0, 42.0, 42.0 };
+                    if (giuseppedebugging) {
+                        instance_data._padding = [3]f32{ 42.0, 42.0, 42.0 };
+                    }
 
                     if (!batch_map.contains(batch_key)) {
                         const batch = Batch{
-                            .instances = std.ArrayList(InstanceData).init(self.allocator),
+                            .instances = std.ArrayList(InstanceData).initCapacity(self.allocator, 10000) catch unreachable,
                             .start_instance_location = 0,
                         };
-                        batch_map.put(batch_key, batch) catch unreachable;
+                        batch_map.putAssumeCapacity(batch_key, batch);
                     }
 
                     const batch = batch_map.getPtr(batch_key).?;
-                    batch.*.instances.append(instance_data) catch unreachable;
+                    batch.*.instances.appendAssumeCapacity(instance_data);
                 }
             }
         }
@@ -663,9 +676,9 @@ inline fn isWithinCameraDrawDistance(camera_position: [3]f32, entity_position: [
     return false;
 }
 
-fn selectLOD(lods: []const renderer_types.Lod, camera_position: [3]f32, entity_position: [3]f32) renderer_types.Lod {
+fn selectLOD(lods: []const renderer_types.Lod, camera_position: [3]f32, entity_position: [3]f32) *const renderer_types.Lod {
     if (lods.len == 1) {
-        return lods[0];
+        return &lods[0];
     }
 
     const z_camera_position = zm.loadArr3(camera_position);
@@ -689,5 +702,5 @@ fn selectLOD(lods: []const renderer_types.Lod, camera_position: [3]f32, entity_p
     }
 
     lod = @min(lod, lods.len - 1);
-    return lods[lod];
+    return &lods[lod];
 }

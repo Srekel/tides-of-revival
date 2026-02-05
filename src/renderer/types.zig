@@ -105,7 +105,6 @@ pub const UpdateDesc = struct {
 
 pub const InstanceData = struct {
     object_to_world: [16]f32,
-    world_to_object: [16]f32,
     material_index: u32,
     _padding: [3]f32,
 };
@@ -154,7 +153,7 @@ pub const DynamicEntity = struct {
 
 pub const Lod = struct {
     mesh_handle: renderer.LegacyMeshHandle,
-    materials: [geometry.sub_mesh_max_count]IdLocal,
+    materials: [geometry.sub_mesh_max_count]IdLocal.HashType,
     materials_count: u32,
 };
 

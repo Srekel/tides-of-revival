@@ -198,7 +198,7 @@ pub const WaterPass = struct {
 
                 var instance_data = std.mem.zeroes(InstanceData);
                 zm.storeMat(&instance_data.object_to_world, ocean_tile.world);
-                zm.storeMat(&instance_data.world_to_object, zm.inverse(ocean_tile.world));
+                // zm.storeMat(&instance_data.world_to_object, zm.inverse(ocean_tile.world));
                 self.instance_data.append(instance_data) catch unreachable;
             }
 

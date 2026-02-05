@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const sub_mesh_max_count: u32 = 32;
+pub const sub_mesh_max_count: u32 = 16;
 pub const mesh_lod_max_count: u32 = 4;
 
 pub const Meshlet = struct {

@@ -227,7 +227,7 @@ pub const PrefabManager = struct {
             const num_materials: usize = @intCast(mesh.geometry.*.bitfield_1.mDrawArgCount);
             lod_group.lods[lod_group.lod_count].materials_count = @intCast(num_materials);
             for (0..num_materials) |material_index| {
-                lod_group.lods[lod_group.lod_count].materials[material_index] = InvalidID;
+                lod_group.lods[lod_group.lod_count].materials[material_index] = InvalidID.hash;
             }
 
             lod_group.lod_count += 1;
@@ -248,7 +248,7 @@ pub const PrefabManager = struct {
             const num_materials: usize = @intCast(mesh.geometry.*.bitfield_1.mDrawArgCount);
             lod_group.lods[lod_group.lod_count].materials_count = @intCast(num_materials);
             for (0..num_materials) |material_index| {
-                lod_group.lods[lod_group.lod_count].materials[material_index] = InvalidID;
+                lod_group.lods[lod_group.lod_count].materials[material_index] = InvalidID.hash;
             }
 
             lod_group.lod_count += 1;
