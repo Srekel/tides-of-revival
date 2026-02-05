@@ -44,6 +44,7 @@ const VertexLayoutHashMap = std.AutoHashMap(IdLocal, graphics.VertexLayout);
 
 const BuffersVisualizationPushConstants = struct {
     buffer_visualization_mode: u32,
+    visualize_nans: u32,
 };
 
 const visualization_modes = [_][:0]const u8{
@@ -53,6 +54,7 @@ const visualization_modes = [_][:0]const u8{
     "Roughness",
     "Metalness",
     "Reflectance",
+    "No Post Processing",
 };
 
 pub const Renderer = struct {
@@ -185,6 +187,7 @@ pub const Renderer = struct {
     // Buffers Visualization
     // =====================
     selected_visualization_mode: i32 = -1,
+    visualize_nans: bool = false,
     buffers_visualization_descriptor_set: [*c]graphics.DescriptorSet = undefined,
 
     // Composite SDR Pass
@@ -1039,36 +1042,67 @@ pub const Renderer = struct {
         }
 
         // Post Processing
-        {
-            const profile_index = self.startGpuProfile(cmd_list, "Post");
-            defer self.endGpuProfile(cmd_list, profile_index);
+        if (self.selected_visualization_mode == -1) {
+            {
+                const profile_index = self.startGpuProfile(cmd_list, "Post");
+                defer self.endGpuProfile(cmd_list, profile_index);
 
-            const trazy_zone1 = ztracy.ZoneNC(@src(), "Post Processing", 0x00_ff_00_00);
-            defer trazy_zone1.End();
+                const trazy_zone1 = ztracy.ZoneNC(@src(), "Post Processing", 0x00_ff_00_00);
+                defer trazy_zone1.End();
 
-            self.post_processing_pass.render(cmd_list, render_view);
+                self.post_processing_pass.render(cmd_list, render_view);
+            }
+
+            // Tonemapper
+            {
+                const trazy_zone1 = ztracy.ZoneNC(@src(), "Tonemapper", 0x00_ff_00_00);
+                defer trazy_zone1.End();
+
+                const profile_index = self.startGpuProfile(cmd_list, "Tonemapper");
+                defer self.endGpuProfile(cmd_list, profile_index);
+
+                const render_target = self.swap_chain.*.ppRenderTargets[self.swap_chain_image_index];
+
+                var rt_barriers = [_]graphics.RenderTargetBarrier{
+                    graphics.RenderTargetBarrier.init(render_target, .RESOURCE_STATE_PRESENT, .RESOURCE_STATE_RENDER_TARGET),
+                };
+
+                graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, rt_barriers.len, @ptrCast(&rt_barriers));
+
+                var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
+                bind_render_targets_desc.mRenderTargetCount = 1;
+                bind_render_targets_desc.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
+                bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.swap_chain.*.ppRenderTargets[self.swap_chain_image_index];
+                bind_render_targets_desc.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
+
+                graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
+
+                graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
+                graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
+
+                const pipeline_id = IdLocal.init("tonemapper");
+                const pipeline = self.getPSO(pipeline_id);
+
+                graphics.cmdBindPipeline(cmd_list, pipeline);
+                graphics.cmdBindDescriptorSet(cmd_list, 0, self.tonemapper_pass_descriptor_set);
+                graphics.cmdDraw(cmd_list, 3, 0);
+            }
         }
 
-        // Tonemapper
-        {
-            const trazy_zone1 = ztracy.ZoneNC(@src(), "Tonemapper", 0x00_ff_00_00);
-            defer trazy_zone1.End();
-
-            const profile_index = self.startGpuProfile(cmd_list, "Tonemapper");
-            defer self.endGpuProfile(cmd_list, profile_index);
-
+        // Debug Viz
+        if (self.selected_visualization_mode >= 0) {
             const render_target = self.swap_chain.*.ppRenderTargets[self.swap_chain_image_index];
 
             var rt_barriers = [_]graphics.RenderTargetBarrier{
                 graphics.RenderTargetBarrier.init(render_target, .RESOURCE_STATE_PRESENT, .RESOURCE_STATE_RENDER_TARGET),
+                graphics.RenderTargetBarrier.init(self.scene_color, .RESOURCE_STATE_RENDER_TARGET, .RESOURCE_STATE_SHADER_RESOURCE),
             };
 
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, rt_barriers.len, @ptrCast(&rt_barriers));
-
             var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
             bind_render_targets_desc.mRenderTargetCount = 1;
             bind_render_targets_desc.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
-            bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.swap_chain.*.ppRenderTargets[self.swap_chain_image_index];
+            bind_render_targets_desc.mRenderTargets[0].pRenderTarget = render_target;
             bind_render_targets_desc.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
 
             graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
@@ -1076,13 +1110,24 @@ pub const Renderer = struct {
             graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
             graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
 
-            const pipeline_id = IdLocal.init("tonemapper");
+            const pipeline_id = IdLocal.init("buffer_visualizer");
+            const root_signature = self.getRootSignature(pipeline_id);
             const pipeline = self.getPSO(pipeline_id);
 
+            const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
+            std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
+
+            const push_constants = BuffersVisualizationPushConstants{
+                .buffer_visualization_mode = @intCast(self.selected_visualization_mode),
+                .visualize_nans = if (self.visualize_nans) 1 else 0,
+            };
+
             graphics.cmdBindPipeline(cmd_list, pipeline);
-            graphics.cmdBindDescriptorSet(cmd_list, 0, self.tonemapper_pass_descriptor_set);
+            graphics.cmdBindDescriptorSet(cmd_list, 0, self.buffers_visualization_descriptor_set);
+            graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(&push_constants));
             graphics.cmdDraw(cmd_list, 3, 0);
         }
+
 
         // UI Overlay
         {
@@ -1181,36 +1226,6 @@ pub const Renderer = struct {
             graphics.cmdResourceBarrier(cmd_list, 0, null, 0, null, output_barriers.len, @ptrCast(&output_barriers));
 
             graphics.cmdBindRenderTargets(cmd_list, null);
-        }
-
-        // Debug Viz
-        if (self.selected_visualization_mode >= 0) {
-            var bind_render_targets_desc = std.mem.zeroes(graphics.BindRenderTargetsDesc);
-            bind_render_targets_desc.mRenderTargetCount = 1;
-            bind_render_targets_desc.mRenderTargets[0] = std.mem.zeroes(graphics.BindRenderTargetDesc);
-            bind_render_targets_desc.mRenderTargets[0].pRenderTarget = self.swap_chain.*.ppRenderTargets[self.swap_chain_image_index];
-            bind_render_targets_desc.mRenderTargets[0].mLoadAction = graphics.LoadActionType.LOAD_ACTION_CLEAR;
-
-            graphics.cmdBindRenderTargets(cmd_list, &bind_render_targets_desc);
-
-            graphics.cmdSetViewport(cmd_list, 0.0, 0.0, @floatFromInt(self.window.frame_buffer_size[0]), @floatFromInt(self.window.frame_buffer_size[1]), 0.0, 1.0);
-            graphics.cmdSetScissor(cmd_list, 0, 0, @intCast(self.window.frame_buffer_size[0]), @intCast(self.window.frame_buffer_size[1]));
-
-            const pipeline_id = IdLocal.init("buffer_visualizer");
-            const root_signature = self.getRootSignature(pipeline_id);
-            const pipeline = self.getPSO(pipeline_id);
-
-            const root_constant_index = graphics.getDescriptorIndexFromName(root_signature, "RootConstant");
-            std.debug.assert(root_constant_index != renderer_types.InvalidResourceIndex);
-
-            const push_constants = BuffersVisualizationPushConstants{
-                .buffer_visualization_mode = @intCast(self.selected_visualization_mode),
-            };
-
-            graphics.cmdBindPipeline(cmd_list, pipeline);
-            graphics.cmdBindDescriptorSet(cmd_list, 0, self.buffers_visualization_descriptor_set);
-            graphics.cmdBindPushConstants(cmd_list, root_signature, root_constant_index, @constCast(&push_constants));
-            graphics.cmdDraw(cmd_list, 3, 0);
         }
 
         // Present
@@ -1339,6 +1354,7 @@ pub const Renderer = struct {
                         }
                         zgui.endPopup();
                     }
+                    _ = zgui.checkbox("Visualize NaNs", .{ .v = &self.visualize_nans });
                 }
             }
 
@@ -2508,7 +2524,7 @@ pub const Renderer = struct {
 
     fn prepareBuffersVisualizationDescriptorSet(self: *Renderer) void {
         for (0..data_buffer_count) |frame_index| {
-            var params: [3]graphics.DescriptorData = undefined;
+            var params: [4]graphics.DescriptorData = undefined;
 
             params[0] = std.mem.zeroes(graphics.DescriptorData);
             params[0].pName = "GBuffer0";
@@ -2519,6 +2535,9 @@ pub const Renderer = struct {
             params[2] = std.mem.zeroes(graphics.DescriptorData);
             params[2].pName = "GBuffer2";
             params[2].__union_field3.ppTextures = @ptrCast(&self.gbuffer_2.*.pTexture);
+            params[3] = std.mem.zeroes(graphics.DescriptorData);
+            params[3].pName = "SceneColor";
+            params[3].__union_field3.ppTextures = @ptrCast(&self.scene_color.*.pTexture);
 
             graphics.updateDescriptorSet(self.renderer, @intCast(frame_index), self.buffers_visualization_descriptor_set, params.len, @ptrCast(&params));
         }

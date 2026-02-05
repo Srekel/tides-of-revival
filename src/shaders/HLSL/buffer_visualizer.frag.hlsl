@@ -1,5 +1,6 @@
 #include "../FSL/d3d.h"
 #include "color_space_utility.hlsli"
+#include "utils.hlsli"
 
 // Buffer visualization modes
 #define BUFFER_VISUALIZATION_ALBEDO 0
@@ -8,15 +9,18 @@
 #define BUFFER_VISUALIZATION_ROUGHNESS 3
 #define BUFFER_VISUALIZATION_METALNESS 4
 #define BUFFER_VISUALIZATION_REFLECTANCE 5
+#define BUFFER_VISUALIZATION_NO_PP 6
 
 cbuffer RootConstant : register(b0)
 {
     uint buffer_visualization_mode;
+    uint display_nans;
 };
 
 Texture2D<float4> GBuffer0 : register(t0, UPDATE_FREQ_PER_FRAME);
 Texture2D<float4> GBuffer1 : register(t1, UPDATE_FREQ_PER_FRAME);
 Texture2D<float4> GBuffer2 : register(t2, UPDATE_FREQ_PER_FRAME);
+Texture2D<float4> SceneColor : register(t3, UPDATE_FREQ_PER_FRAME);
 
 float4 main(float4 position : SV_Position) : SV_Target0
 {
@@ -46,6 +50,18 @@ float4 main(float4 position : SV_Position) : SV_Target0
     else if (buffer_visualization_mode == BUFFER_VISUALIZATION_REFLECTANCE)
     {
         buffer = GBuffer2[(int2)position.xy].aaa;
+    }
+    else if (buffer_visualization_mode == BUFFER_VISUALIZATION_NO_PP)
+    {
+        buffer = SceneColor[(int2)position.xy].rgb;
+    }
+
+    if (display_nans)
+    {
+        if (IsNaN(buffer))
+        {
+            buffer = float3(1, 0, 0);
+        }
     }
 
     return float4(buffer, 1.0);

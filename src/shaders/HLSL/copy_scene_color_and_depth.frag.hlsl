@@ -2,6 +2,7 @@
 #define STAGE_FRAG
 
 #include "../FSL/d3d.h"
+#include "utils.hlsli"
 
 SamplerState g_linear_clamp_edge_sampler : register(s0, UPDATE_FREQ_NONE);
 
@@ -26,7 +27,15 @@ struct PsOut
 PsOut PS_MAIN(VsOut input)
 {
     PsOut output = (PsOut)0;
-    output.m_scene_color = SampleLvlTex2D(g_scene_color, g_linear_clamp_edge_sampler, input.UV, 0);
+    float4 scene_color = SampleLvlTex2D(g_scene_color, g_linear_clamp_edge_sampler, input.UV, 0);
+    if (IsNaN(scene_color.rgb))
+    {
+        output.m_scene_color = float4(0, 0, 0, 1);
+    }
+    else
+    {
+        output.m_scene_color = scene_color;
+    }
     output.m_depth_buffer = SampleLvlTex2D(g_depth_buffer, g_linear_clamp_edge_sampler, input.UV, 0);
 
     return output;

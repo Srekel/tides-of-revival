@@ -60,6 +60,16 @@ INLINE float3 UnpackNormals(float2 uv, float3 viewDirection, Tex2D(float4) norma
 	return normalize(mul(tangentNormal, TBN));
 }
 
+bool IsNaN(float x)
+{
+	return (asuint(x) & 0x7fffffff) > 0x7f800000;
+}
+
+bool IsNaN(float3 x)
+{
+	return IsNaN(x.r) || IsNaN(x.g) || IsNaN(x.b);
+}
+
 //  ██████╗ ██████╗ ██╗      ██████╗ ██████╗     ██╗   ██╗████████╗██╗██╗     ██╗██╗████████╗███████╗███████╗
 // ██╔════╝██╔═══██╗██║     ██╔═══██╗██╔══██╗    ██║   ██║╚══██╔══╝██║██║     ██║██║╚══██╔══╝██╔════╝██╔════╝
 // ██║     ██║   ██║██║     ██║   ██║██████╔╝    ██║   ██║   ██║   ██║██║     ██║██║   ██║   █████╗  ███████╗
