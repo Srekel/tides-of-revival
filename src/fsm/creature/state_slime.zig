@@ -323,7 +323,7 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                     task_data.*.entity = mama_slime;
                     ctx.task_queue.enqueue(
                         SlimeDropTask.id,
-                        .{ .time = 5, .loop_type = .{ .loop = 50 } },
+                        .{ .time = 5, .loop_type = .{ .loop = 120 } },
                         std.mem.asBytes(task_data),
                     );
                 }
