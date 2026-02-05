@@ -789,12 +789,13 @@ pub const EnvironmentInfo = struct {
     player: ?ecsu.Entity,
     rest_state: enum {
         not,
+        initial_load,
         initial_rest,
         transition_in,
         resting_during_morning,
         resting_until_morning,
         transition_out,
-    } = .initial_rest,
+    } = .initial_load,
     journey_state: enum {
         not,
         transition_in,

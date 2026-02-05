@@ -1028,9 +1028,18 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                     // }
                 }
             },
+            .initial_load => {
+                environment_info.player_state_time += 0.1;
+                if (environment_info.player_state_time >= 1) {
+                    environment_info.player_state_time = 0;
+                    environment_info.rest_state = .initial_rest;
+                }
+                vignette_settings.feather = 0;
+                vignette_settings.radius = 0;
+            },
             .initial_rest => {
                 environment_info.player_state_time += ui_dt * 0.2;
-                environment_info.journey_time_multiplier = 500;
+                environment_info.journey_time_multiplier = 350;
                 if (environment_info.player_state_time >= 1) {
                     environment_info.player_state_time = 1;
                     if (!is_morning) {
@@ -1038,8 +1047,8 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                         environment_info.rest_state = .transition_out;
                     }
                 }
-                vignette_settings.feather = environment_info.player_state_time * 0.9;
-                vignette_settings.radius = environment_info.player_state_time * 0.9;
+                vignette_settings.feather = environment_info.player_state_time * 0.3;
+                vignette_settings.radius = environment_info.player_state_time * 0.3;
             },
             .transition_in => {
                 environment_info.player_state_time += ui_dt * 2;
@@ -1073,8 +1082,8 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                     environment_info.player_state_time = 0;
                     environment_info.rest_state = .not;
                 }
-                vignette_settings.feather = 1 - environment_info.player_state_time * 0.3;
-                vignette_settings.radius = 1 - environment_info.player_state_time * 0.3;
+                vignette_settings.feather = 1 - environment_info.player_state_time * 0.7;
+                vignette_settings.radius = 1 - environment_info.player_state_time * 0.7;
             },
         }
     }

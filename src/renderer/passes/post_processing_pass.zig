@@ -171,8 +171,8 @@ pub const PostProcessingPass = struct {
 
         self.vignette_settings = .{
             .enabled = true,
-            .radius = 1.0,
-            .feather = 1.0,
+            .radius = 0.0,
+            .feather = 0.0,
             .color = .{ 0.0, 0.0, 0.0 },
         };
         self.vignette_constant_buffers = blk: {
