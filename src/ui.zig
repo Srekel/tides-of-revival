@@ -107,11 +107,12 @@ const intro: Text = .{
         .{ .text = "" },
         .{
             .text = "[Press Left Mouse Button to start game]",
-            .anchor_x = 145,
+            .anchor_x = 90,
+            .size = 24,
         },
         .{
             .text = "[You can always press H for instructions]",
-            .anchor_x = 140,
+            .anchor_x = 83,
         },
     },
 };
@@ -133,10 +134,25 @@ const outro_game_over: Text = .{
             .size = 18,
         },
         .{ .text = "You succumed to the beast." },
+        .{
+            .size = 24,
+        },
         .{ .text = "" },
-        .{ .text = "Restart the game to try again... if you dare!" },
         .{ .text = "" },
-        .{ .text = "[Press C for credits]" },
+        .{ .text = "" },
+        .{ .text = "" },
+        .{ .text = "" },
+        .{ .text = "" },
+        .{ .text = "" },
+        .{
+            .text = "Restart the game to try again... if you dare!",
+            .anchor_x = 80,
+        },
+        .{ .text = "" },
+        .{
+            .text = "[Press C for credits]",
+            .anchor_x = 180,
+        },
     },
 };
 
@@ -157,8 +173,17 @@ const outro_win: Text = .{
             .size = 18,
         },
         .{ .text = "You have slain the beast, and the villages complete their road!." },
+        .{
+            .size = 24,
+        },
         .{ .text = "" },
-        .{ .text = "[Press C for credits]" },
+        .{ .text = "" },
+        .{ .text = "" },
+        .{ .text = "" },
+        .{
+            .text = "[Press C for credits]",
+            .anchor_x = 180,
+        },
     },
 };
 
