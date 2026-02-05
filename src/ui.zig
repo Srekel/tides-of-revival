@@ -29,6 +29,7 @@ const Text = struct {
 
 const UI = struct {
     logo_ent: ecsu.Entity = .{},
+    big_window_texture_handle: renderer.TextureHandle = undefined,
 
     intro_ent: ecsu.Entity = .{},
     intro_text_ents: [intro.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** intro.lines.len,
@@ -155,7 +156,7 @@ const outro_win: Text = .{
         .{
             .size = 18,
         },
-        .{ .text = "You slayed the beast, and the villages complete their road!." },
+        .{ .text = "You have slain the beast, and the villages complete their road!." },
         .{ .text = "" },
         .{ .text = "[Press C for credits]" },
     },
@@ -168,6 +169,7 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
 
     const window_size_x: f32 = @floatFromInt(main_window.frame_buffer_size[0]);
     const window_size_y: f32 = @floatFromInt(main_window.frame_buffer_size[1]);
+    self.big_window_texture_handle = renderer_ctx.loadTexture("textures/ui/intro.dds");
 
     // Watermark Logo
     {
@@ -192,8 +194,7 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
 
     // Intro
     {
-        const texture_handle = renderer_ctx.loadTexture("textures/ui/intro.dds");
-        const texture = renderer_ctx.getTexture(texture_handle);
+        const texture = renderer_ctx.getTexture(self.big_window_texture_handle);
         const width: f32 = @floatFromInt(texture[0].bitfield_1.mWidth);
         const height: f32 = @floatFromInt(texture[0].bitfield_1.mHeight);
 
@@ -210,7 +211,7 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
             },
             .material = .{
                 .color = [4]f32{ 1, 1, 1, 0 },
-                .texture = texture_handle,
+                .texture = self.big_window_texture_handle,
             },
         });
 
@@ -219,8 +220,7 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
 
     // Outro
     {
-        const texture_handle = renderer_ctx.loadTexture("textures/ui/intro.dds");
-        const texture = renderer_ctx.getTexture(texture_handle);
+        const texture = renderer_ctx.getTexture(self.big_window_texture_handle);
         const width: f32 = @floatFromInt(texture[0].bitfield_1.mWidth);
         const height: f32 = @floatFromInt(texture[0].bitfield_1.mHeight);
 
@@ -237,15 +237,14 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
             },
             .material = .{
                 .color = [4]f32{ 1, 1, 1, 0 },
-                .texture = texture_handle,
+                .texture = self.big_window_texture_handle,
             },
         });
 
         doText(outro_game_over, left + 50, bottom + 50, &self.outro_game_over_text_ents);
     }
     {
-        const texture_handle = renderer_ctx.loadTexture("textures/ui/intro.dds");
-        const texture = renderer_ctx.getTexture(texture_handle);
+        const texture = renderer_ctx.getTexture(self.big_window_texture_handle);
         const width: f32 = @floatFromInt(texture[0].bitfield_1.mWidth);
         const height: f32 = @floatFromInt(texture[0].bitfield_1.mHeight);
 
@@ -262,7 +261,7 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
             },
             .material = .{
                 .color = [4]f32{ 1, 1, 1, 0 },
-                .texture = texture_handle,
+                .texture = self.big_window_texture_handle,
             },
         });
 
@@ -279,8 +278,7 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
     const window_size_x: f32 = @floatFromInt(self.main_window.frame_buffer_size[0]);
     const window_size_y: f32 = @floatFromInt(self.main_window.frame_buffer_size[1]);
 
-    const big_window_texture_handle = self.renderer_ctx.loadTexture("textures/ui/intro.dds");
-    const big_window_texture = self.renderer_ctx.getTexture(big_window_texture_handle);
+    const big_window_texture = self.renderer_ctx.getTexture(self.big_window_texture_handle);
     const big_window_width: f32 = @floatFromInt(big_window_texture[0].bitfield_1.mWidth);
     const big_window_height: f32 = @floatFromInt(big_window_texture[0].bitfield_1.mHeight);
     const big_window_left = window_size_x / 2 - big_window_width / 2;
