@@ -18,6 +18,8 @@ pub const move_fast = ID("move_fast");
 pub const interact = ID("interact");
 pub const wielded_use_primary = ID("wielded_use_primary");
 pub const wielded_use_secondary = ID("wielded_use_secondary");
+pub const help = ID("help");
+pub const credits = ID("credits");
 
 pub const cursor_pos = ID("cursor_pos");
 pub const cursor_movement = ID("cursor_movement");
@@ -72,6 +74,8 @@ pub fn createDefaultTargetDefaults(allocator: std.mem.Allocator) input.TargetMap
         itm.putAssumeCapacity(interact, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(wielded_use_primary, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(wielded_use_secondary, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(help, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(credits, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(cursor_pos, input.TargetValue{ .vector2 = .{ 0, 0 } });
         itm.putAssumeCapacity(cursor_movement, input.TargetValue{ .vector2 = .{ 0, 0 } });
         itm.putAssumeCapacity(cursor_movement_x, input.TargetValue{ .number = 0 });
@@ -139,8 +143,10 @@ pub fn createKeyMap(allocator: std.mem.Allocator) input.KeyMap {
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = move_slow, .source = input.BindingSource{ .keyboard_key = .left_control } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = move_fast, .source = input.BindingSource{ .keyboard_key = .left_shift } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = interact, .source = input.BindingSource{ .keyboard_key = .f } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = wielded_use_primary, .source = input.BindingSource{ .keyboard_key = .g } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = wielded_use_secondary, .source = input.BindingSource{ .keyboard_key = .h } });
+        // keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = wielded_use_primary, .source = input.BindingSource{ .keyboard_key = .g } });
+        // keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = wielded_use_secondary, .source = input.BindingSource{ .keyboard_key = .h } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = help, .source = input.BindingSource{ .keyboard_key = .h } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = credits, .source = input.BindingSource{ .keyboard_key = .c } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = journey, .source = input.BindingSource{ .keyboard_key = .space } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = rest, .source = input.BindingSource{ .keyboard_key = .r } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = draw_bounding_spheres, .source = input.BindingSource{ .keyboard_key = .b } });

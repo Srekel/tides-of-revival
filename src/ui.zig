@@ -30,15 +30,12 @@ const Text = struct {
 const UI = struct {
     logo_ent: ecsu.Entity = .{},
     big_window_texture_handle: renderer.TextureHandle = undefined,
+    big_window_ent: ecsu.Entity = .{},
 
-    intro_ent: ecsu.Entity = .{},
     intro_text_ents: [intro.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** intro.lines.len,
-
-    outro_game_over_ent: ecsu.Entity = .{},
     outro_game_over_text_ents: [outro_game_over.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** outro_game_over.lines.len,
-
-    outro_win_ent: ecsu.Entity = .{},
     outro_win_text_ents: [outro_win.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** outro_win.lines.len,
+    help_text_ents: [help.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** help.lines.len,
 
     main_window: *window.Window = undefined,
     ecsu_world: ecsu.World = undefined,
@@ -104,7 +101,6 @@ const intro: Text = .{
         .{ .text = "" },
         .{ .text = "\"Never travel in darkness.\"" },
         .{ .text = "" },
-        .{ .text = "" },
         .{
             .text = "[Press Left Mouse Button to start game]",
             .anchor_x = 90,
@@ -113,6 +109,10 @@ const intro: Text = .{
         .{
             .text = "[You can always press H for instructions]",
             .anchor_x = 83,
+        },
+        .{
+            .text = "[Press C for credits]",
+            .anchor_x = 180,
         },
     },
 };
@@ -135,24 +135,17 @@ const outro_game_over: Text = .{
         },
         .{ .text = "You succumed to the beast." },
         .{
-            .size = 24,
+            .size = 48,
         },
-        .{ .text = "" },
-        .{ .text = "" },
-        .{ .text = "" },
-        .{ .text = "" },
         .{ .text = "" },
         .{ .text = "" },
         .{ .text = "" },
         .{
             .text = "Restart the game to try again... if you dare!",
             .anchor_x = 80,
+            .size = 24,
         },
         .{ .text = "" },
-        .{
-            .text = "[Press C for credits]",
-            .anchor_x = 180,
-        },
     },
 };
 
@@ -172,18 +165,43 @@ const outro_win: Text = .{
         .{
             .size = 18,
         },
-        .{ .text = "You have slain the beast, and the villages complete their road!." },
+        .{ .text = "You have slain the beast, and the villages complete their road!" },
         .{
             .size = 24,
         },
-        .{ .text = "" },
-        .{ .text = "" },
-        .{ .text = "" },
-        .{ .text = "" },
+    },
+};
+
+const help: Text = .{
+    .lines = &.{
         .{
-            .text = "[Press C for credits]",
-            .anchor_x = 180,
+            .text = "Tides of Revival",
+            .size = 72,
+            .anchor_x = 50,
         },
+        .{
+            .text = "How to play",
+            .size = 42,
+            .anchor_x = 195,
+            .line_height = 2,
+        },
+        .{
+            .size = 18,
+        },
+        .{ .text = "Look around by moving the mouse." },
+        .{ .text = "Press and hold down Left Mouse Button to draw and shoot your bow." },
+        .{ .text = "" },
+        .{ .text = "Press W, A, S, D to move. " },
+        .{ .text = "Hold shift to run." },
+        .{ .text = "" },
+        .{ .text = "To journey long distances, aim somewhere and when the boot icon" },
+        .{ .text = "is white, press F to travel there." },
+        .{ .text = "" },
+        .{ .text = "To rest, look at the ground. When the fireplace icon" },
+        .{ .text = "is white, press R to rest. You will rest here until morning." },
+        .{ .text = "" },
+        .{ .text = "Tip: Travel to hilltops with a view. Rest there over night and" },
+        .{ .text = "look out for mama slime!" },
     },
 };
 
@@ -194,7 +212,27 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
 
     const window_size_x: f32 = @floatFromInt(main_window.frame_buffer_size[0]);
     const window_size_y: f32 = @floatFromInt(main_window.frame_buffer_size[1]);
+
     self.big_window_texture_handle = renderer_ctx.loadTexture("textures/ui/intro.dds");
+    const big_window_texture = self.renderer_ctx.getTexture(self.big_window_texture_handle);
+    const big_window_width: f32 = @floatFromInt(big_window_texture[0].bitfield_1.mWidth);
+    const big_window_height: f32 = @floatFromInt(big_window_texture[0].bitfield_1.mHeight);
+    const big_window_left = window_size_x / 2 - big_window_width / 2;
+    const big_window_bottom = window_size_y / 2 - big_window_height / 2;
+
+    self.big_window_ent = ecsu_world.newEntity();
+    self.big_window_ent.set(fd.UIImage{
+        .rect = .{
+            .x = big_window_left,
+            .y = big_window_bottom,
+            .width = big_window_width,
+            .height = big_window_height,
+        },
+        .material = .{
+            .color = [4]f32{ 1, 1, 1, 0 },
+            .texture = self.big_window_texture_handle,
+        },
+    });
 
     // Watermark Logo
     {
@@ -226,20 +264,6 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
         const left = window_size_x / 2 - width / 2;
         const bottom = window_size_y / 2 - height / 2;
 
-        self.intro_ent = ecsu_world.newEntity();
-        self.intro_ent.set(fd.UIImage{
-            .rect = .{
-                .x = left,
-                .y = bottom,
-                .width = width,
-                .height = height,
-            },
-            .material = .{
-                .color = [4]f32{ 1, 1, 1, 0 },
-                .texture = self.big_window_texture_handle,
-            },
-        });
-
         doText(intro, left + 50, bottom + 50, &self.intro_text_ents);
     }
 
@@ -252,20 +276,6 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
         const left = window_size_x / 2 - width / 2;
         const bottom = window_size_y / 2 - height / 2;
 
-        self.outro_game_over_ent = ecsu_world.newEntity();
-        self.outro_game_over_ent.set(fd.UIImage{
-            .rect = .{
-                .x = left,
-                .y = bottom,
-                .width = width,
-                .height = height,
-            },
-            .material = .{
-                .color = [4]f32{ 1, 1, 1, 0 },
-                .texture = self.big_window_texture_handle,
-            },
-        });
-
         doText(outro_game_over, left + 50, bottom + 50, &self.outro_game_over_text_ents);
     }
     {
@@ -276,30 +286,28 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
         const left = window_size_x / 2 - width / 2;
         const bottom = window_size_y / 2 - height / 2;
 
-        self.outro_win_ent = ecsu_world.newEntity();
-        self.outro_win_ent.set(fd.UIImage{
-            .rect = .{
-                .x = left,
-                .y = bottom,
-                .width = width,
-                .height = height,
-            },
-            .material = .{
-                .color = [4]f32{ 1, 1, 1, 0 },
-                .texture = self.big_window_texture_handle,
-            },
-        });
-
         doText(outro_win, left + 50, bottom + 50, &self.outro_win_text_ents);
+    }
+
+    // Help
+    {
+        const texture = renderer_ctx.getTexture(self.big_window_texture_handle);
+        const width: f32 = @floatFromInt(texture[0].bitfield_1.mWidth);
+        const height: f32 = @floatFromInt(texture[0].bitfield_1.mHeight);
+
+        const left = window_size_x / 2 - width / 2;
+        const bottom = window_size_y / 2 - height / 2;
+
+        doText(help, left + 50, bottom + 50, &self.help_text_ents);
     }
 }
 
 pub fn deinit() void {}
 
 pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
-    var debugself = self;
-    debugself.intro_ent = debugself.intro_ent;
+    // var debugself = self;
 
+    const environment_info = self.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
     const window_size_x: f32 = @floatFromInt(self.main_window.frame_buffer_size[0]);
     const window_size_y: f32 = @floatFromInt(self.main_window.frame_buffer_size[1]);
 
@@ -308,6 +316,13 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
     const big_window_height: f32 = @floatFromInt(big_window_texture[0].bitfield_1.mHeight);
     const big_window_left = window_size_x / 2 - big_window_width / 2;
     const big_window_bottom = window_size_y / 2 - big_window_height / 2;
+    const big_window_image = self.big_window_ent.getMut(fd.UIImage).?;
+
+    // BG image
+    {
+        big_window_image.rect.x = big_window_left;
+        big_window_image.rect.y = big_window_bottom;
+    }
 
     // LOGO
     {
@@ -316,23 +331,23 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
         logo.rect.y = window_size_y - logo_margin - logo_size;
     }
 
+    const help_pressed = input_frame_data.held(config.input.help);
+    const credits_pressed = input_frame_data.held(config.input.credits);
+
     // Intro
     if (self.intro_text_ents[0].id != 0) {
-        const intro_image = self.intro_ent.getMut(fd.UIImage).?;
-        intro_image.rect.x = big_window_left;
-        intro_image.rect.y = big_window_bottom;
         doText(intro, big_window_left + 50, big_window_bottom + 50, &self.intro_text_ents);
 
-        if (input_frame_data.just_pressed(config.input.wielded_use_primary)) {
-            self.ecsu_world.delete(self.intro_ent.id);
+        if (input_frame_data.just_pressed(config.input.wielded_use_primary) or help_pressed or credits_pressed) {
             for (self.intro_text_ents) |ent| {
                 if (ent.id != 0) {
                     self.ecsu_world.delete(ent.id);
                 }
             }
             self.intro_text_ents[0].id = 0;
-        } else if (intro_image.material.color[3] < 1) {
-            intro_image.material.color[3] = @min(1, intro_image.material.color[3] + dt * 4);
+            big_window_image.material.color[3] = 0;
+        } else if (big_window_image.material.color[3] < 1) {
+            big_window_image.material.color[3] = @min(1, big_window_image.material.color[3] + dt * 4);
         } else {
             for (self.intro_text_ents) |ent| {
                 const text = ent.getMut(fd.UIText).?;
@@ -351,21 +366,17 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
 
     // Outro
     if (self.intro_text_ents[0].id == 0) {
-        const outro_image = self.outro_game_over_ent.getMut(fd.UIImage).?;
-        outro_image.rect.x = big_window_left;
-        outro_image.rect.y = big_window_bottom;
-
         const player_ent = ecs.lookup(self.ecsu_world.world, "main_player");
         const player_health = ecs.get(self.ecsu_world.world, player_ent, fd.Health).?;
         if (player_health.value == 0) {
+            environment_info.game_state = .game_over;
             doText(outro_game_over, big_window_left + 50, big_window_bottom + 50, &self.outro_game_over_text_ents);
 
             // std.log.warn("lol2 {} {}", .{ self.intro_text_ents[0].id, player_health.value });
-            const environment_info = self.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
             if (environment_info.active_camera.?.id != environment_info.player_camera.?.id) {
-                outro_image.material.color[3] = @max(0, outro_image.material.color[3] - dt * 4);
-            } else if (outro_image.material.color[3] < 1) {
-                outro_image.material.color[3] = @min(1, outro_image.material.color[3] + dt * 4);
+                big_window_image.material.color[3] = @max(0, big_window_image.material.color[3] - dt * 4);
+            } else if (big_window_image.material.color[3] < 1) {
+                big_window_image.material.color[3] = @min(1, big_window_image.material.color[3] + dt * 4);
             } else {
                 for (self.outro_game_over_text_ents) |ent| {
                     const text = ent.getMut(fd.UIText).?;
@@ -406,13 +417,13 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
             };
 
             if (!slime_alive) {
+                environment_info.game_state = .game_over;
                 doText(outro_win, big_window_left + 50, big_window_bottom + 50, &self.outro_win_text_ents);
 
-                const environment_info = self.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
                 if (environment_info.active_camera.?.id != environment_info.player_camera.?.id) {
-                    outro_image.material.color[3] = @max(0, outro_image.material.color[3] - dt * 4);
-                } else if (outro_image.material.color[3] < 1) {
-                    outro_image.material.color[3] = @min(1, outro_image.material.color[3] + dt * 4);
+                    big_window_image.material.color[3] = @max(0, big_window_image.material.color[3] - dt * 4);
+                } else if (big_window_image.material.color[3] < 1) {
+                    big_window_image.material.color[3] = @min(1, big_window_image.material.color[3] + dt * 4);
                 } else {
                     for (self.outro_win_text_ents) |ent| {
                         const text = ent.getMut(fd.UIText).?;
@@ -428,6 +439,34 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
                     }
                 }
             }
+        }
+    }
+
+    // Intro
+    if (input_frame_data.held(config.input.help)) {
+        doText(help, big_window_left + 50, big_window_bottom + 50, &self.help_text_ents);
+        if (big_window_image.material.color[3] < 1) {
+            big_window_image.material.color[3] = @min(1, big_window_image.material.color[3] + dt * 10);
+        } else {
+            for (self.help_text_ents) |ent| {
+                const text = ent.getMut(fd.UIText).?;
+                if (text.shadow_color[3] < 1.0) {
+                    text.text_color[3] = 1;
+                    text.shadow_color[3] = @min(1, text.shadow_color[3] + dt * 20);
+                    text.shadow_blur = @min(text.font_size / 5, text.shadow_blur + dt * 20);
+                    for (0..3) |i| {
+                        text.text_color[i] = std.math.lerp(help.color_start[i], intro.color_end[i], text.shadow_color[3]);
+                    }
+                    break;
+                }
+            }
+        }
+    } else if (self.intro_text_ents[0].id == 0 and environment_info.game_state == .running) {
+        big_window_image.material.color[3] = 0;
+        for (self.help_text_ents) |ent| {
+            const text = ent.getMut(fd.UIText).?;
+            text.shadow_color[3] = 0;
+            text.text_color[3] = 0;
         }
     }
 }

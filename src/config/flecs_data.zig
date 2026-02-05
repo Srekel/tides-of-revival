@@ -802,6 +802,10 @@ pub const EnvironmentInfo = struct {
         journeying,
         transition_out,
     } = .not,
+    game_state: enum {
+        running,
+        game_over,
+    } = .running,
     can_rest: enum { invalid, no, yes } = .no,
     can_journey: enum { invalid, no, yes } = .no,
     journey_dist: enum { near, good, far } = .good,
