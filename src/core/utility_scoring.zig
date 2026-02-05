@@ -16,7 +16,7 @@ pub fn eval_linear_curve(x_value_0_1: f32, curve_ys: Curve) f32 {
 pub fn eval_linear_curve_24(x_value_0_24: f32, curve_ys: Curve) f32 {
     const x_before = @floor(x_value_0_24);
     const index1: u8 = @intFromFloat(x_before);
-    const index2 = index1 + 1;
+    const index2 = @min(24, index1 + 1);
     const lerp_t: f32 = (x_value_0_24 - x_before);
     const y_before = curve_ys[index1];
     const y_after = curve_ys[index2];
