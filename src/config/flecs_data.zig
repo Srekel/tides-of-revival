@@ -316,8 +316,8 @@ pub const Transform = struct {
         return self.matrix[9..].*;
     }
 
-    pub fn getPos(self: Transform) []const f32 {
-        return self.matrix[9..];
+    pub fn getPos(self: Transform) [3]f32 {
+        return self.matrix[9..].*;
     }
 
     pub fn setPos(self: *Transform, pos: [3]f32) void {
