@@ -541,7 +541,7 @@ pub const PSOManager = struct {
 
         // Deferred
         {
-            var sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge, StaticSamplers.point_clamp_edge, StaticSamplers.linear_clamp_cmp_greater };
+            var deferred_sampler_ids = [_]IdLocal{ StaticSamplers.linear_repeat, StaticSamplers.linear_clamp_edge, StaticSamplers.point_clamp_edge, StaticSamplers.linear_clamp_cmp_greater };
             const render_targets = [_]graphics.TinyImageFormat{self.renderer.scene_color.*.mFormat};
 
             const desc = GraphicsPipelineDesc{
@@ -550,9 +550,13 @@ pub const PSOManager = struct {
                 .frag_shader_name = "deferred_shading.frag",
                 .render_targets = @constCast(&render_targets),
                 .rasterizer_state = rasterizer_cull_none,
-                .sampler_ids = &sampler_ids,
+                .sampler_ids = &deferred_sampler_ids,
             };
             self.createGraphicsPipeline(desc);
+
+            var sampler_ids = [_]IdLocal{};
+            self.createComputePipeline(IdLocal.init("light_cull_clear"), "light_cull_clear.comp", &sampler_ids);
+            self.createComputePipeline(IdLocal.init("light_cull"), "light_cull.comp", &sampler_ids);
         }
 
         // ImGUI Pipeline
