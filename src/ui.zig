@@ -78,16 +78,16 @@ const intro: Text = .{
         .{
             .text = "Tides of Revival",
             .size = 72,
-            .anchor_x = 50,
+            .anchor_x = 70,
         },
         .{
             .text = "Hill 3: A Sense of Scale",
             .size = 42,
-            .anchor_x = 90,
-            .line_height = 2,
+            .anchor_x = 20 + 90,
+            .line_height = 1.5,
         },
         .{
-            .size = 18,
+            .size = 20,
         },
         .{ .text = "Your boat capsized in a storm. Drifting for days, clinging to a chunk of" },
         .{ .text = "wood, you finally make it to a beach. Rescued by a nearby village, you" },
@@ -122,16 +122,16 @@ const outro_game_over: Text = .{
         .{
             .text = "Tides of Revival",
             .size = 72,
-            .anchor_x = 50,
+            .anchor_x = 70,
         },
         .{
             .text = "Game Over!",
             .size = 42,
-            .anchor_x = 195,
-            .line_height = 2,
+            .anchor_x = 20 + 195,
+            .line_height = 1.5,
         },
         .{
-            .size = 18,
+            .size = 20,
         },
         .{ .text = "You succumed to the beast." },
         .{
@@ -154,16 +154,16 @@ const outro_win: Text = .{
         .{
             .text = "Tides of Revival",
             .size = 72,
-            .anchor_x = 50,
+            .anchor_x = 70,
         },
         .{
             .text = "You won!",
             .size = 42,
-            .anchor_x = 195,
-            .line_height = 2,
+            .anchor_x = 20 + 195,
+            .line_height = 1.5,
         },
         .{
-            .size = 18,
+            .size = 20,
         },
         .{ .text = "You have slain the beast, and the villages complete their road!" },
         .{
@@ -177,16 +177,16 @@ const help: Text = .{
         .{
             .text = "Tides of Revival",
             .size = 72,
-            .anchor_x = 50,
+            .anchor_x = 70,
         },
         .{
             .text = "How to play",
             .size = 42,
-            .anchor_x = 195,
-            .line_height = 2,
+            .anchor_x = 20 + 195,
+            .line_height = 1.5,
         },
         .{
-            .size = 18,
+            .size = 20,
         },
         .{ .text = "Look around by moving the mouse." },
         .{ .text = "Press and hold down Left Mouse Button to draw and shoot your bow." },
@@ -264,7 +264,7 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
         const left = window_size_x / 2 - width / 2;
         const bottom = window_size_y / 2 - height / 2;
 
-        doText(intro, left + 50, bottom + 50, &self.intro_text_ents);
+        doText(intro, left + 30, bottom + 50, &self.intro_text_ents);
     }
 
     // Outro
@@ -276,7 +276,7 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
         const left = window_size_x / 2 - width / 2;
         const bottom = window_size_y / 2 - height / 2;
 
-        doText(outro_game_over, left + 50, bottom + 50, &self.outro_game_over_text_ents);
+        doText(outro_game_over, left + 30, bottom + 50, &self.outro_game_over_text_ents);
     }
     {
         const texture = renderer_ctx.getTexture(self.big_window_texture_handle);
@@ -286,7 +286,7 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
         const left = window_size_x / 2 - width / 2;
         const bottom = window_size_y / 2 - height / 2;
 
-        doText(outro_win, left + 50, bottom + 50, &self.outro_win_text_ents);
+        doText(outro_win, left + 30, bottom + 50, &self.outro_win_text_ents);
     }
 
     // Help
@@ -298,7 +298,7 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
         const left = window_size_x / 2 - width / 2;
         const bottom = window_size_y / 2 - height / 2;
 
-        doText(help, left + 50, bottom + 50, &self.help_text_ents);
+        doText(help, left + 30, bottom + 50, &self.help_text_ents);
     }
 }
 
@@ -336,7 +336,7 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
 
     // Intro
     if (self.intro_text_ents[0].id != 0) {
-        doText(intro, big_window_left + 50, big_window_bottom + 50, &self.intro_text_ents);
+        doText(intro, big_window_left + 30, big_window_bottom + 50, &self.intro_text_ents);
 
         if (input_frame_data.just_pressed(config.input.wielded_use_primary) or help_pressed or credits_pressed) {
             for (self.intro_text_ents) |ent| {
@@ -370,7 +370,7 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
         const player_health = ecs.get(self.ecsu_world.world, player_ent, fd.Health).?;
         if (player_health.value == 0) {
             environment_info.game_state = .game_over;
-            doText(outro_game_over, big_window_left + 50, big_window_bottom + 50, &self.outro_game_over_text_ents);
+            doText(outro_game_over, big_window_left + 30, big_window_bottom + 50, &self.outro_game_over_text_ents);
 
             // std.log.warn("lol2 {} {}", .{ self.intro_text_ents[0].id, player_health.value });
             if (environment_info.active_camera.?.id != environment_info.player_camera.?.id) {
@@ -418,7 +418,7 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
 
             if (!slime_alive) {
                 environment_info.game_state = .game_over;
-                doText(outro_win, big_window_left + 50, big_window_bottom + 50, &self.outro_win_text_ents);
+                doText(outro_win, big_window_left + 30, big_window_bottom + 50, &self.outro_win_text_ents);
 
                 if (environment_info.active_camera.?.id != environment_info.player_camera.?.id) {
                     big_window_image.material.color[3] = @max(0, big_window_image.material.color[3] - dt * 4);
@@ -444,7 +444,7 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
 
     // Intro
     if (input_frame_data.held(config.input.help)) {
-        doText(help, big_window_left + 50, big_window_bottom + 50, &self.help_text_ents);
+        doText(help, big_window_left + 30, big_window_bottom + 50, &self.help_text_ents);
         if (big_window_image.material.color[3] < 1) {
             big_window_image.material.color[3] = @min(1, big_window_image.material.color[3] + dt * 10);
         } else {
