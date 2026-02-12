@@ -220,7 +220,7 @@ pub fn createKeyMap(allocator: std.mem.Allocator) input.KeyMap {
             .bindings = std.ArrayList(input.Binding).init(std.heap.page_allocator),
             .processors = std.ArrayList(input.Processor).init(std.heap.page_allocator),
         };
-        gamepad_map.bindings.ensureTotalCapacity(8) catch unreachable;
+        gamepad_map.bindings.ensureTotalCapacity(16) catch unreachable;
         gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = gamepad_look_x, .source = input.BindingSource{ .gamepad_axis = .right_x } });
         gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = gamepad_look_y, .source = input.BindingSource{ .gamepad_axis = .right_y } });
         gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = gamepad_move_x, .source = input.BindingSource{ .gamepad_axis = .left_x } });
@@ -228,6 +228,8 @@ pub fn createKeyMap(allocator: std.mem.Allocator) input.KeyMap {
         gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = wielded_use_primary, .source = input.BindingSource{ .gamepad_button = .right_bumper } });
         // gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = move_slow, .source = input.BindingSource{ .gamepad_button = .left_bumper } });
         gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = move_fast, .source = input.BindingSource{ .gamepad_button = .left_bumper } });
+        gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = journey, .source = input.BindingSource{ .gamepad_button = .a } });
+        gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = rest, .source = input.BindingSource{ .gamepad_button = .y } });
         gamepad_map.processors.ensureTotalCapacity(16) catch unreachable;
         gamepad_map.processors.appendAssumeCapacity(.{
             .target_id = gamepad_look_x,
