@@ -556,7 +556,7 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
                 break :blk false;
             };
 
-            if (!slime_alive or true) {
+            if (!slime_alive) {
                 environment_info.game_state = .game_over;
                 doText(outro_win, big_window_left + 30, big_window_bottom + 50, &self.outro_win_text_ents);
 

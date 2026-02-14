@@ -682,7 +682,7 @@ const SplitIfNearPlayer = struct {
 
         const self: *SplitIfNearPlayer = @alignCast(@ptrCast(data));
         var enemy = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Enemy).?;
-        enemy.base_scale *= 0.7;
+        enemy.base_scale *= 0.65;
         enemy.aggressive = true;
         enemy.idling = false;
 
