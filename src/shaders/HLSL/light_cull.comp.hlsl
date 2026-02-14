@@ -6,12 +6,10 @@
 struct LightCullParams
 {
     float4x4 viewProj;
+    float3 cameraPosition;
     uint lightsCount;
     uint lightsBufferIndex;
-    uint visibleLightsCountBufferIndex;
-    uint visibleLightsBufferIndex;
-    float3 cameraPosition;
-    float maxDistance;
+    uint3 _padding;
 };
 
 cbuffer g_Params : register(b0, UPDATE_FREQ_PER_FRAME)
@@ -19,21 +17,22 @@ cbuffer g_Params : register(b0, UPDATE_FREQ_PER_FRAME)
     LightCullParams g_Params;
 }
 
+RWByteAddressBuffer g_VisibleLightsCountBuffer : register(u0, UPDATE_FREQ_PER_FRAME);
+RWByteAddressBuffer g_VisibleLightsBuffer : register(u1, UPDATE_FREQ_PER_FRAME);
+
 [numthreads(32, 1, 1)] void main(uint3 DTid : SV_DispatchThreadID)
 {
     if (DTid.x < g_Params.lightsCount)
     {
         ByteAddressBuffer lightsBuffer = ResourceDescriptorHeap[g_Params.lightsBufferIndex];
-        RWByteAddressBuffer visibleLightsBuffer = ResourceDescriptorHeap[g_Params.visibleLightsBufferIndex];
-        RWByteAddressBuffer visibleLightsCountBuffer = ResourceDescriptorHeap[g_Params.visibleLightsCountBufferIndex];
 
         GpuLight light = lightsBuffer.Load<GpuLight>(DTid.x * sizeof(GpuLight));
 
         if (light.light_type == 0)
         {
             uint visibleLightIndex = 0;
-            visibleLightsCountBuffer.InterlockedAdd(0, 1, visibleLightIndex);
-            visibleLightsBuffer.Store<GpuLight>(visibleLightIndex * sizeof(GpuLight), light);
+            g_VisibleLightsCountBuffer.InterlockedAdd(0, 1, visibleLightIndex);
+            g_VisibleLightsBuffer.Store<GpuLight>(visibleLightIndex * sizeof(GpuLight), light);
         }
         else
         {
@@ -47,13 +46,11 @@ cbuffer g_Params : register(b0, UPDATE_FREQ_PER_FRAME)
             DrawBoundingSphere(localCenter, localExtents, translation, float4(light.color, 1));
             bool isVisible = FrustumCull(localCenter, localExtents, translation, g_Params.viewProj);
 
-            // float lightDistance = length(light.position - g_Params.cameraPosition);
-            // if (lightDistance < g_Params.maxDistance)
             if (isVisible)
             {
                 uint visibleLightIndex = 0;
-                visibleLightsCountBuffer.InterlockedAdd(0, 1, visibleLightIndex);
-                visibleLightsBuffer.Store<GpuLight>(visibleLightIndex * sizeof(GpuLight), light);
+                g_VisibleLightsCountBuffer.InterlockedAdd(0, 1, visibleLightIndex);
+                g_VisibleLightsBuffer.Store<GpuLight>(visibleLightIndex * sizeof(GpuLight), light);
             }
         }
     }
