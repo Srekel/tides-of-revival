@@ -9,6 +9,7 @@ const zforge = @import("zforge");
 const ztracy = @import("ztracy");
 const util = @import("../../util.zig");
 const OpaqueSlice = util.OpaqueSlice;
+const zgui = @import("zgui");
 const zm = @import("zmath");
 
 const graphics = zforge.graphics;
@@ -157,6 +158,19 @@ pub const DynamicGeometryPass = struct {
 
         graphics.cmdBindVertexBuffer(cmd_list, vertex_layout.mAttribCount, @constCast(&vertex_buffers), @constCast(&mesh.geometry.*.mVertexStrides), null);
         graphics.cmdBindIndexBuffer(cmd_list, mesh.geometry.*.__union_field1.__struct_field1.pIndexBuffer, mesh.geometry.*.bitfield_1.mIndexType, 0);
+    }
+
+    pub fn renderImGui(self: *@This()) void {
+        if (zgui.collapsingHeader("Dynamic Renderer", .{})) {
+            var batch_keys_iterator = self.gbuffer_batches.keyIterator();
+            _ = zgui.text("Batches: {}", .{batch_keys_iterator.len});
+            var batch_index: u32 = 0;
+            while (batch_keys_iterator.next()) |batch_key| {
+                const batch = self.gbuffer_batches.getPtr(batch_key.*).?;
+                _ = zgui.text("Batch {} | {} | {} instance count: {}", .{ batch_key.*.mesh_handle.id, batch_key.*.sub_mesh_index, batch_key.*.material_id, batch.instances.items.len });
+                batch_index += 1;
+            }
+        }
     }
 
     pub fn renderGBuffer(self: *@This(), cmd_list: [*c]graphics.Cmd, render_view: renderer.RenderView) void {
