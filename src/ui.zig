@@ -16,15 +16,17 @@ const TextLine = struct {
     anchor_x: f32 = 0,
     anchor_y: f32 = 0,
     line_height: f32 = 1.25,
+    new_column: bool = false,
 };
 
 const Text = struct {
-    color_start: [4]f32 = [4]f32{ 163.0 / 255.0, 112.0 / 255.0, 58.0 / 255.0, 0.0 },
-    color_end: [4]f32 = [4]f32{ 229.0 / 255.0, 207.0 / 255.0, 121.0 / 255.0, 1.0 },
+    color_start: [4]f32 = [4]f32{ 183.0 / 255.0, 132.0 / 255.0, 78.0 / 255.0, 0.0 },
+    color_end: [4]f32 = [4]f32{ 249.0 / 255.0, 207.0 / 255.0, 141.0 / 255.0, 1.0 },
     shadow_color: [4]f32 = [4]f32{ 0, 0, 0, 0.0 },
     shadow_blur: f32 = 14,
     lines: []const TextLine,
     size: f32 = 0,
+    columns: u32 = 1,
 };
 
 const UI = struct {
@@ -36,6 +38,8 @@ const UI = struct {
     outro_game_over_text_ents: [outro_game_over.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** outro_game_over.lines.len,
     outro_win_text_ents: [outro_win.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** outro_win.lines.len,
     help_text_ents: [help.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** help.lines.len,
+    credits_text_ents: [credits.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** credits.lines.len,
+    help2_text_ents: [help2.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** help2.lines.len,
 
     main_window: *window.Window = undefined,
     ecsu_world: ecsu.World = undefined,
@@ -44,10 +48,25 @@ const UI = struct {
 
 var self: UI = .{};
 
-fn doText(text: Text, left: f32, bottom_base: f32, entities: []ecsu.Entity) void {
+fn doText(text: Text, left_base: f32, bottom_base: f32, entities: []ecsu.Entity) void {
+    var column_bottom = bottom_base;
     var bottom = bottom_base;
+    var left = left_base;
     var size = text.size;
+    var anchor_x: f32 = 0;
     for (text.lines, 0..) |line, i| {
+        if (line.anchor_x != 0) {
+            anchor_x = if (line.anchor_x == -1) 0 else line.anchor_x;
+        }
+        if (line.new_column) {
+            if (line.size != 0) {
+                left = left_base;
+                column_bottom = bottom;
+            } else {
+                left = left_base + 400;
+                bottom = column_bottom;
+            }
+        }
         size = if (line.size > 0) line.size else size;
         if (entities[i].id == 0) {
             entities[i] = self.ecsu_world.newEntity();
@@ -65,7 +84,7 @@ fn doText(text: Text, left: f32, bottom_base: f32, entities: []ecsu.Entity) void
             });
         } else {
             var uitext = entities[i].getMut(fd.UIText).?;
-            uitext.left = left + line.anchor_x;
+            uitext.left = left + anchor_x;
             uitext.bottom = bottom;
         }
 
@@ -78,17 +97,27 @@ const intro: Text = .{
         .{
             .text = "Tides of Revival",
             .size = 72,
-            .anchor_x = 70,
+            .anchor_x = 120,
         },
         .{
             .text = "Hill 3: A Sense of Scale",
             .size = 42,
-            .anchor_x = 20 + 90,
+            .anchor_x = 70 + 90,
             .line_height = 1.5,
         },
         .{
             .size = 20,
+            .anchor_x = -1,
         },
+        .{ .text = "Hi! My name is Anders and this is the third iteration, or hill, as we", .anchor_x = 90 },
+        .{ .text = "say, of the game we are working on. There's a whole bunch of jank but", .anchor_x = 70 },
+        .{ .text = "also some cool things, so I hope you'll like it!", .anchor_x = 180 },
+        .{ .text = "" },
+        .{
+            .text = "--------------------------------------------------------------",
+            .anchor_x = 150,
+        },
+        .{ .text = "", .anchor_x = 50 },
         .{ .text = "Your boat capsized in a storm. Drifting for days, clinging to a chunk of" },
         .{ .text = "wood, you finally make it to a beach. Rescued by a nearby village, you" },
         .{ .text = "have been brought back to life and vigor." },
@@ -103,16 +132,16 @@ const intro: Text = .{
         .{ .text = "" },
         .{
             .text = "[Press Left Mouse Button to start game]",
-            .anchor_x = 90,
+            .anchor_x = 160,
             .size = 24,
         },
         .{
             .text = "[You can always press H for instructions]",
-            .anchor_x = 83,
+            .anchor_x = 155,
         },
         .{
             .text = "[Press C for credits]",
-            .anchor_x = 180,
+            .anchor_x = 265,
         },
     },
 };
@@ -122,27 +151,31 @@ const outro_game_over: Text = .{
         .{
             .text = "Tides of Revival",
             .size = 72,
-            .anchor_x = 70,
+            .anchor_x = 120,
         },
         .{
             .text = "Game Over!",
             .size = 42,
-            .anchor_x = 20 + 195,
+            .anchor_x = 70 + 195,
             .line_height = 1.5,
         },
         .{
-            .size = 20,
+            .size = 40,
         },
-        .{ .text = "You succumed to the beast." },
+        .{ .text = "" },
+        .{
+            .text = "You succumed to the beast.",
+            .anchor_x = 230,
+            .size = 24,
+        },
         .{
             .size = 48,
         },
         .{ .text = "" },
         .{ .text = "" },
-        .{ .text = "" },
         .{
             .text = "Restart the game to try again... if you dare!",
-            .anchor_x = 80,
+            .anchor_x = 140,
             .size = 24,
         },
         .{ .text = "" },
@@ -154,21 +187,46 @@ const outro_win: Text = .{
         .{
             .text = "Tides of Revival",
             .size = 72,
-            .anchor_x = 70,
+            .anchor_x = 120,
         },
         .{
             .text = "You won!",
             .size = 42,
-            .anchor_x = 20 + 195,
+            .anchor_x = 70 + 195,
             .line_height = 1.5,
+        },
+        .{
+            .size = 50,
+        },
+        .{
+            .text = "You have slain the beast, and the villages complete their road!",
+            .size = 24,
+            .anchor_x = 45,
         },
         .{
             .size = 20,
         },
-        .{ .text = "You have slain the beast, and the villages complete their road!" },
+        .{},
+        .{},
         .{
-            .size = 24,
+            .text = "--------------------------------------------------------------",
+            .anchor_x = 150,
         },
+        .{ .anchor_x = -1 },
+        .{ .text = "So, what's next for Tides of Revival?" },
+        .{ .text = "Well, we have lofty goals!" },
+        .{ .text = "" },
+        .{ .text = "The world you just played in is roughly 16 by 16 km wide." },
+        .{ .text = "As a comparison, Skyrim's is 8x8 km. I know, I know, Skyrim's seems bigger! :)." },
+        .{ .text = "For Hill 4, we are aiming for a world that's 64x64 km big." },
+        .{ .text = "" },
+        .{ .text = "To do this we will write a new engine from scratch. In a new language!" },
+        .{ .text = "Our goals include supporting really really big worlds, better debugging," },
+        .{ .text = "improved performance, modding support, and more. " },
+        .{ .text = "" },
+        .{ .text = "So, Hill 4 will primarily a tech foundation and demo to show off and build off of." },
+        .{ .text = "" },
+        .{ .text = "There's more to be said, but the space is limited! Come join us on our journey!" },
     },
 };
 
@@ -177,16 +235,17 @@ const help: Text = .{
         .{
             .text = "Tides of Revival",
             .size = 72,
-            .anchor_x = 70,
+            .anchor_x = 120,
         },
         .{
             .text = "How to play",
             .size = 42,
-            .anchor_x = 20 + 195,
+            .anchor_x = 70 + 195,
             .line_height = 1.5,
         },
         .{
             .size = 20,
+            .anchor_x = -1,
         },
         .{ .text = "Look around by moving the mouse." },
         .{ .text = "Press and hold down Left Mouse Button to draw and shoot your bow." },
@@ -202,6 +261,67 @@ const help: Text = .{
         .{ .text = "" },
         .{ .text = "Tip: Travel to hilltops with a view. Rest there over night and" },
         .{ .text = "look out for mama slime!" },
+    },
+};
+
+const help2: Text = .{
+    .color_start = [4]f32{ 200.0 / 255.0, 200.0 / 255.0, 200.0 / 255.0, 1.0 },
+    .color_end = [4]f32{ 0.0 / 255.0, 0.0 / 255.0, 0.0 / 255.0, 1.0 },
+    .lines = &.{
+        .{
+            .text = "Tides of Revival: A Sense of Scale. February 2025.",
+            .size = 25,
+        },
+        .{
+            .text = "[H] Help",
+        },
+        .{
+            .text = "[C] Credits",
+        },
+    },
+};
+
+const credits: Text = .{
+    .lines = &.{
+        .{
+            .text = "Tides of Revival",
+            .size = 72,
+            .anchor_x = 120,
+        },
+        .{
+            .text = "Credits",
+            .size = 42,
+            .anchor_x = 70 + 195,
+            .line_height = 1.5,
+        },
+
+        .{ .text = "Project Lead: Anders Elfgren", .new_column = true, .size = 20, .anchor_x = -1 },
+        .{ .text = "Gameplay programming: Anders Elfgren" },
+        .{ .text = "Graphics programming: Giuseppe Modarelli" },
+        .{ .text = "Additional stuff: Alexander Dahl" },
+        .{ .text = "Art: Giulia Di Noia", .new_column = true },
+        .{ .text = "Art: Anders Elfgren" },
+        .{ .text = "Sound effects: River Blue" },
+        .{ .text = "Music: Solvej von Malmborg" },
+        .{ .text = "" },
+        .{ .text = "Additional content", .size = 30, .new_column = true },
+        .{ .text = "Google Fonts", .size = 20, .new_column = true },
+        .{ .text = "Sonniss" },
+        .{ .text = "PMSFX" },
+        .{ .text = "Poly Haven" },
+        .{ .text = "Nature Manufacture", .new_column = true },
+        .{ .text = "Kenney Assets" },
+        .{ .text = "Quaternius" },
+        .{ .text = "Textures.com" },
+        .{ .text = "" },
+        .{ .text = "Thanks to", .size = 30, .new_column = true },
+        .{ .text = "Jurgita Elfgren for wifing", .size = 20, .new_column = true },
+        .{ .text = "Ted and Ben Elfgren for playtesting" },
+        .{ .text = "Open World Gamedev", .new_column = true },
+        .{ .text = "" },
+        .{ .text = "" },
+        .{ .text = "Production babies", .size = 30, .new_column = true },
+        .{ .text = "Martin Elfgren", .size = 20 },
     },
 };
 
@@ -265,7 +385,7 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
         const left = window_size_x / 2 - width / 2;
         const bottom = window_size_y / 2 - height / 2;
 
-        doText(intro, left + 30, bottom + 50, &self.intro_text_ents);
+        doText(intro, left + 120, bottom + 50, &self.intro_text_ents);
     }
 
     // Outro
@@ -277,7 +397,7 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
         const left = window_size_x / 2 - width / 2;
         const bottom = window_size_y / 2 - height / 2;
 
-        doText(outro_game_over, left + 30, bottom + 50, &self.outro_game_over_text_ents);
+        doText(outro_game_over, left + 120, bottom + 50, &self.outro_game_over_text_ents);
     }
     {
         const texture = renderer_ctx.getTexture(self.big_window_texture_handle);
@@ -287,7 +407,7 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
         const left = window_size_x / 2 - width / 2;
         const bottom = window_size_y / 2 - height / 2;
 
-        doText(outro_win, left + 30, bottom + 50, &self.outro_win_text_ents);
+        doText(outro_win, left + 120, bottom + 50, &self.outro_win_text_ents);
     }
 
     // Help
@@ -299,7 +419,26 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
         const left = window_size_x / 2 - width / 2;
         const bottom = window_size_y / 2 - height / 2;
 
-        doText(help, left + 30, bottom + 50, &self.help_text_ents);
+        doText(help, left + 120, bottom + 50, &self.help_text_ents);
+    }
+
+    // Credits
+    {
+        const texture = renderer_ctx.getTexture(self.big_window_texture_handle);
+        const width: f32 = @floatFromInt(texture[0].bitfield_1.mWidth);
+        const height: f32 = @floatFromInt(texture[0].bitfield_1.mHeight);
+
+        const left = window_size_x / 2 - width / 2;
+        const bottom = window_size_y / 2 - height / 2;
+
+        doText(credits, left + 120, bottom + 50, &self.credits_text_ents);
+    }
+
+    {
+        const left = 10;
+        const bottom = 10;
+
+        doText(help2, left, bottom, &self.help2_text_ents);
     }
 }
 
@@ -417,7 +556,7 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
                 break :blk false;
             };
 
-            if (!slime_alive) {
+            if (!slime_alive or true) {
                 environment_info.game_state = .game_over;
                 doText(outro_win, big_window_left + 30, big_window_bottom + 50, &self.outro_win_text_ents);
 
@@ -444,7 +583,7 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
     }
 
     // Intro
-    if (input_frame_data.held(config.input.help)) {
+    if (help_pressed) {
         doText(help, big_window_left + 30, big_window_bottom + 50, &self.help_text_ents);
         if (big_window_image.material.color[3] < 1) {
             big_window_image.material.color[3] = @min(1, big_window_image.material.color[3] + dt * 10);
@@ -462,12 +601,40 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
                 }
             }
         }
+    } else if (credits_pressed) {
+        doText(credits, big_window_left + 30, big_window_bottom + 50, &self.credits_text_ents);
+        if (big_window_image.material.color[3] < 1) {
+            big_window_image.material.color[3] = @min(1, big_window_image.material.color[3] + dt * 10);
+        } else {
+            for (self.credits_text_ents) |ent| {
+                const text = ent.getMut(fd.UIText).?;
+                if (text.shadow_color[3] < 1.0) {
+                    text.text_color[3] = 1;
+                    text.shadow_color[3] = @min(1, text.shadow_color[3] + dt * 20);
+                    text.shadow_blur = @min(text.font_size / 5, text.shadow_blur + dt * 20);
+                    for (0..3) |i| {
+                        text.text_color[i] = std.math.lerp(credits.color_start[i], intro.color_end[i], text.shadow_color[3]);
+                    }
+                    break;
+                }
+            }
+        }
     } else if (self.intro_text_ents[0].id == 0 and environment_info.game_state == .running) {
         big_window_image.material.color[3] = 0;
         for (self.help_text_ents) |ent| {
             const text = ent.getMut(fd.UIText).?;
             text.shadow_color[3] = 0;
             text.text_color[3] = 0;
+        }
+        for (self.credits_text_ents) |ent| {
+            const text = ent.getMut(fd.UIText).?;
+            text.shadow_color[3] = 0;
+            text.text_color[3] = 0;
+        }
+        for (self.help2_text_ents) |ent| {
+            const text = ent.getMut(fd.UIText).?;
+            text.shadow_color[3] = 1;
+            text.text_color[3] = 1;
         }
     }
 }
