@@ -16,8 +16,6 @@ const resource_loader = zforge.resource_loader;
 const InstanceData = renderer_types.InstanceData;
 const InstanceRootConstants = renderer_types.InstanceRootConstants;
 
-const giuseppedebugging = false;
-
 pub const UniformFrameData = struct {
     projection_view: [16]f32,
     projection_view_inverted: [16]f32,
@@ -646,9 +644,6 @@ pub const DynamicGeometryPass = struct {
                     var instance_data: InstanceData = undefined;
                     zm.storeMat(&instance_data.object_to_world, dynamic_entity.world);
                     instance_data.material_index = @intCast(material_index);
-                    if (giuseppedebugging) {
-                        instance_data._padding = [3]f32{ 42.0, 42.0, 42.0 };
-                    }
 
                     if (!batch_map.contains(batch_key)) {
                         const batch = Batch{

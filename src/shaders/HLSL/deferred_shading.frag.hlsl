@@ -35,15 +35,16 @@ cbuffer cbFrame : register(b0, UPDATE_FREQ_PER_FRAME)
     float g_far_plane;
     float2 g_shadow_resolution_inverse;
     float4 g_cascade_depths;
-    uint g_visible_lights_buffer_index;
-    uint g_visible_lights_count_buffer_index;
+    uint g_lights_buffer_index;
     uint g_light_matrix_buffer_index;
     uint g_sh9_ambient_buffer_index;
+    uint _padding;
     float3 g_fog_color;
     float g_fog_density;
-    uint g_lights_buffer_index;
-    uint3 _padding;
 };
+
+ByteAddressBuffer g_VisibleLightsCountBuffer : register(t8, UPDATE_FREQ_PER_FRAME);
+ByteAddressBuffer g_VisibleLightsBuffer : register(t9, UPDATE_FREQ_PER_FRAME);
 
 STRUCT(VsOut)
 {
@@ -191,8 +192,6 @@ float3 CalculateAmbientLight(float3 normalWS, float3 diffuseAlbedo, float intens
 float4 PS_MAIN(VsOut Input) : SV_TARGET0
 {
     ByteAddressBuffer lightsBuffer = ResourceDescriptorHeap[g_lights_buffer_index];
-    ByteAddressBuffer visibleLightsBuffer = ResourceDescriptorHeap[g_visible_lights_buffer_index];
-    ByteAddressBuffer visibleLightsCountBuffer = ResourceDescriptorHeap[g_visible_lights_count_buffer_index];
 
     float4 baseColor = SampleLvlTex2D(Get(gBuffer0), Get(g_linear_clamp_edge_sampler), Input.UV, 0);
     if (baseColor.a <= 0)
@@ -230,10 +229,10 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET0
 
     float3 Lo = float3(0.0f, 0.0f, 0.0f);
 
-    uint visible_lights_count = visibleLightsCountBuffer.Load<uint>(0);
+    uint visible_lights_count = g_VisibleLightsCountBuffer.Load<uint>(0);
     [loop] for (uint i = 0; i < visible_lights_count; ++i)
     {
-        GpuLight light = visibleLightsBuffer.Load<GpuLight>(i * sizeof(GpuLight));
+        GpuLight light = g_VisibleLightsBuffer.Load<GpuLight>(i * sizeof(GpuLight));
         Lo += ShadeLight(light, surfaceInfo, attenuation);
     }
 
