@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const config = @import("../config/config.zig");
 const ecsu = @import("../flecs_util/flecs_util.zig");
 const fd = @import("../config/flecs_data.zig");
 const file_system = zforge.file_system;
@@ -7,6 +8,7 @@ const font = zforge.font;
 const geometry = @import("geometry.zig");
 const graphics = zforge.graphics;
 const IdLocal = @import("../core/core.zig").IdLocal;
+const input = @import("../input.zig");
 const memory = zforge.memory;
 const OpaqueSlice = util.OpaqueSlice;
 const Pool = @import("zpool").Pool;
@@ -80,6 +82,10 @@ pub const Renderer = struct {
     graphics_queue: [*c]graphics.Queue = null,
     frame_index: u32 = 0,
     profiler: profiler.Profiler = undefined,
+    display_stats: bool = false,
+    cpu_average_ms: [16]u8 = .{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+    cpu_frame_profile_index: usize = 0,
+    gpu_average_ms: [16]u8 = .{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
     gpu_frame_profile_index: usize = 0,
     gpu_shadow_profile_index: usize = 0,
     gpu_skybox_profile_index: usize = 0,
@@ -577,12 +583,27 @@ pub const Renderer = struct {
         self.profiler.endProfile(cmd_list, profile_index);
     }
 
-    pub fn getFrameAvgTimeMs(self: *Renderer) f32 {
-        return getProfilerAvgTimeMs(self.frame_profiler_index);
+    pub fn startCpuProfile(self: *Renderer, name: []const u8) usize {
+        return self.profiler.startCpuProfile(name);
+    }
+
+    pub fn endCpuProfile(self: *Renderer, profile_index: usize) void {
+        self.profiler.endCpuProfile(profile_index);
     }
 
     pub fn getProfilerAvgTimeMs(self: *Renderer, profiler_index: usize) f32 {
         const profile_data = self.profiler.profiles.items[profiler_index];
+        var sum: f64 = 0;
+
+        for (0..profiler.ProfileData.filter_size) |i| {
+            sum += profile_data.time_samples[i];
+        }
+        sum /= 64.0;
+        return @floatCast(sum);
+    }
+
+    pub fn getCpuProfilerAvgTimeMs(self: *Renderer, profiler_index: usize) f32 {
+        const profile_data = self.profiler.cpu_profiles.items[profiler_index];
         var sum: f64 = 0;
 
         for (0..profiler.ProfileData.filter_size) |i| {
@@ -730,10 +751,14 @@ pub const Renderer = struct {
         return self.getBufferBindlessIndex(handle);
     }
 
-    pub fn update(self: *Renderer, update_desc: renderer_types.UpdateDesc) void {
+    pub fn update(self: *Renderer, update_desc: renderer_types.UpdateDesc, input_frame_data: *input.FrameData) void {
         self.time_of_day_01 = update_desc.time_of_day_01;
         self.sun_light = update_desc.sun_light;
         self.moon_light = update_desc.moon_light;
+
+        if (input_frame_data.just_pressed(config.input.toggle_stats)) {
+            self.display_stats = !self.display_stats;
+        }
 
         var lights = std.ArrayList(renderer_types.GpuLight).init(self.allocator);
         lights.append(.{
@@ -788,6 +813,32 @@ pub const Renderer = struct {
 
         self.ui_texts.clearRetainingCapacity();
         self.ui_texts.appendSlice(update_desc.ui_texts.items) catch unreachable;
+
+        if (self.display_stats) {
+            self.ui_texts.append(.{
+                .text_color = [4]f32{ 0.0, 1.0, 0.0, 1.0 },
+                .shadow_color = [4]f32{ 0.0, 0.0, 0.0, 1.0 },
+                .left = 10.0,
+                .bottom = 100.0,
+                .shadow_offset_x = 0.0,
+                .shadow_offset_y = 0.0,
+                .shadow_blur = 0.5,
+                .font_size = 18.0,
+                .text = &self.gpu_average_ms,
+            }) catch unreachable;
+
+            self.ui_texts.append(.{
+                .text_color = [4]f32{ 0.0, 1.0, 0.0, 1.0 },
+                .shadow_color = [4]f32{ 0.0, 0.0, 0.0, 1.0 },
+                .left = 10.0,
+                .bottom = 120.0,
+                .shadow_offset_x = 0.0,
+                .shadow_offset_y = 0.0,
+                .shadow_blur = 0.5,
+                .font_size = 18.0,
+                .text = &self.cpu_average_ms,
+            }) catch unreachable;
+        }
     }
 
     pub fn draw(self: *Renderer) void {
@@ -832,6 +883,7 @@ pub const Renderer = struct {
         self.updateStep(render_view, cmd_list);
 
         self.gpu_frame_profile_index = self.startGpuProfile(cmd_list, "GPU Frame");
+        self.cpu_frame_profile_index = self.startCpuProfile("CPU Frame");
 
         // Debug Line Rendering: Clear UAVs
         {
@@ -1249,6 +1301,7 @@ pub const Renderer = struct {
             }
 
             self.endGpuProfile(cmd_list, self.gpu_frame_profile_index);
+            self.endCpuProfile(self.cpu_frame_profile_index);
             self.profiler.endFrame();
             graphics.endCmd(cmd_list);
 
@@ -1286,6 +1339,18 @@ pub const Renderer = struct {
                 graphics.queuePresent(self.graphics_queue, &queue_present_desc);
             }
         }
+
+        _ = std.fmt.bufPrintZ(
+            self.gpu_average_ms[0..],
+            "GPU: {d:.2}",
+            .{self.getProfilerAvgTimeMs(self.gpu_frame_profile_index)},
+        ) catch unreachable;
+
+        _ = std.fmt.bufPrintZ(
+            self.cpu_average_ms[0..],
+            "CPU: {d:.2}",
+            .{self.getCpuProfilerAvgTimeMs(self.cpu_frame_profile_index)},
+        ) catch unreachable;
 
         self.frame_index = (self.frame_index + 1) % Renderer.data_buffer_count;
     }
@@ -1368,9 +1433,8 @@ pub const Renderer = struct {
                 }
             }
 
-            // TODO(gmodarelli)
             self.terrain_pass.renderImGui();
-            // self.dynamic_geometry_pass.renderImGui();
+            self.dynamic_geometry_pass.renderImGui();
             self.static_geometry_pass.renderImGui();
             self.deferred_shading_pass.renderImGui();
             self.procedural_skybox_pass.renderImGui();
@@ -2855,7 +2919,7 @@ pub const LegacyMeshHandle = LegacyMeshPool.Handle;
 const TexturePool = Pool(16, 16, graphics.Texture, struct { texture: [*c]graphics.Texture });
 pub const TextureHandle = TexturePool.Handle;
 
-const BufferPool = Pool(16, 16, graphics.Buffer, struct { buffer: [*c]graphics.Buffer });
+const BufferPool = Pool(24, 8, graphics.Buffer, struct { buffer: [*c]graphics.Buffer });
 pub const BufferHandle = BufferPool.Handle;
 
 pub inline fn transformVec3Coord(v: zm.Vec, m: zm.Mat) zm.Vec {

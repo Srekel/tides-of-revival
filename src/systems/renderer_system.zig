@@ -477,7 +477,7 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
         update_desc.ui_texts = &system.state.ui_texts;
     }
 
-    system.renderer.update(update_desc);
+    system.renderer.update(update_desc, system.input_frame_data);
 
     system.renderer.draw();
 }
