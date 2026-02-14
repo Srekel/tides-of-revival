@@ -733,10 +733,8 @@ pub const Renderer = struct {
         self.onLoad(reload_desc) catch unreachable;
     }
 
-    // NOTE: Disable VSync for now. Shadows flicker when it is enabled
     pub fn toggleVSync(self: *Renderer) void {
-        _ = self;
-        // self.vsync_enabled = !self.vsync_enabled;
+        self.vsync_enabled = !self.vsync_enabled;
     }
 
     pub fn reloadShaders(self: *Renderer) void {
@@ -845,6 +843,8 @@ pub const Renderer = struct {
         const trazy_zone = ztracy.ZoneNC(@src(), "Render", 0x00_ff_ff_00);
         defer trazy_zone.End();
 
+        self.cpu_frame_profile_index = self.startCpuProfile("CPU Frame");
+
         self.drawRenderSettings();
         self.generateShadowViews();
 
@@ -883,7 +883,6 @@ pub const Renderer = struct {
         self.updateStep(render_view, cmd_list);
 
         self.gpu_frame_profile_index = self.startGpuProfile(cmd_list, "GPU Frame");
-        self.cpu_frame_profile_index = self.startCpuProfile("CPU Frame");
 
         // Debug Line Rendering: Clear UAVs
         {
@@ -1405,7 +1404,7 @@ pub const Renderer = struct {
             // Renderer Settings
             {
                 if (zgui.collapsingHeader("Renderer", .{ .default_open = true })) {
-                    // _ = zgui.checkbox("VSync", .{ .v = &self.vsync_enabled });
+                    _ = zgui.checkbox("VSync", .{ .v = &self.vsync_enabled });
                     _ = zgui.checkbox("Draw Debug Lines", .{ .v = &self.draw_debug_lines });
                     _ = zgui.dragFloat("Shadow Distance", .{ .v = &self.shadow_cascade_max_distance, .speed = 1.0, .min = 100.0, .max = 1500.0 });
                     zgui.text("Cascade 1: {d:.2}", .{self.shadow_cascade_depths[0]});
@@ -2275,7 +2274,7 @@ pub const Renderer = struct {
         // graphics.getSupportedSwapchainFormat(self.renderer, &desc, graphics.ColorSpace.COLOR_SPACE_SDR_SRGB);
         desc.mColorFormat = graphics.TinyImageFormat.R10G10B10A2_UNORM;
         desc.mColorSpace = graphics.ColorSpace.COLOR_SPACE_SDR_SRGB;
-        desc.mEnableVsync = false; // self.vsync_enabled;
+        desc.mEnableVsync = self.vsync_enabled;
         desc.mFlags = graphics.SwapChainCreationFlags.SWAP_CHAIN_CREATION_FLAG_ENABLE_FOVEATED_RENDERING_VR;
         graphics.addSwapChain(self.renderer, &desc, &self.swap_chain);
 
