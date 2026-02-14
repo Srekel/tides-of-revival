@@ -351,19 +351,7 @@ pub fn initPrefabs(prefab_mgr: *prefab_manager.PrefabManager, ecsu_world: ecsu.W
         renderable.id = stacked_stones_id;
 
         // TEMP: Lantern light
-        const light_ent = ecsu_world.newEntity();
-        light_ent.childOf(stacked_stones);
-        light_ent.set(fd.Position{ .x = 0, .y = 2, .z = 0 });
-        light_ent.set(fd.Rotation{});
-        light_ent.set(fd.Scale.createScalar(1));
-        light_ent.set(fd.Transform{});
-        light_ent.set(fd.Dynamic{});
-
-        light_ent.set(fd.PointLight{
-            .color = .{ .r = 1.0, .g = 0.8, .b = 0.6 },
-            .range = 7,
-            .intensity = 4,
-        });
+        // const light_ent
     }
 
     const wood_trim_material_id = ID("house_wood_trim");
