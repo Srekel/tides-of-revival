@@ -25,10 +25,9 @@ RES(Tex2D(float), shadowDepth3, UPDATE_FREQ_NONE, t7, binding = 12);
 
 #define CASCADES_MAX_COUNT 4
 
-cbuffer cbFrame : register(b0, UPDATE_FREQ_PER_FRAME) {
-    float4x4 g_proj_mat;
+cbuffer cbFrame : register(b0, UPDATE_FREQ_PER_FRAME)
+{
     float4x4 g_inv_proj_mat;
-    float4x4 g_proj_view_mat;
     float4x4 g_inv_proj_view_mat;
     float4 g_screen_params;
     float4 g_cam_pos;
@@ -36,36 +35,43 @@ cbuffer cbFrame : register(b0, UPDATE_FREQ_PER_FRAME) {
     float g_far_plane;
     float2 g_shadow_resolution_inverse;
     float4 g_cascade_depths;
-    uint g_lights_buffer_index;
-    uint g_lights_count;
+    uint g_visible_lights_buffer_index;
+    uint g_visible_lights_count_buffer_index;
     uint g_light_matrix_buffer_index;
     uint g_sh9_ambient_buffer_index;
     float3 g_fog_color;
     float g_fog_density;
+    uint g_lights_buffer_index;
+    uint3 _padding;
 };
 
-STRUCT(VsOut) {
+STRUCT(VsOut)
+{
     DATA(float4, Position, SV_Position);
     DATA(float2, UV, TEXCOORD0);
 };
 
-float LinearizeDepth01(float z) {
+float LinearizeDepth01(float z)
+{
     return g_far_plane / (g_far_plane + z * (g_near_plane - g_far_plane));
 }
 
-float3 ViewPositionFromDepth(float2 uv, float depth, float4x4 projectionInverse) {
+float3 ViewPositionFromDepth(float2 uv, float depth, float4x4 projectionInverse)
+{
     float4 clip = float4(float2(uv.x, 1.0f - uv.y) * 2.0f - 1.0f, 0.0f, 1.0f) * g_near_plane;
     float3 viewRay = mul(clip, projectionInverse).xyz;
     return viewRay * LinearizeDepth01(depth);
 }
 
-float3 WorldPositionFromDepth(float2 uv, float depth, float4x4 viewProjectionInverse) {
+float3 WorldPositionFromDepth(float2 uv, float depth, float4x4 viewProjectionInverse)
+{
     float4 clip = float4(float2(uv.x, 1.0f - uv.y) * 2.0f - 1.0f, depth, 1.0f);
     float4 world = mul(clip, viewProjectionInverse);
     return world.xyz / world.w;
 }
 
-uint GetShadowMapIndex(float viewDepth, float dither) {
+uint GetShadowMapIndex(float viewDepth, float dither)
+{
     float4 splits = viewDepth > g_cascade_depths;
     float4 cascades = g_cascade_depths > 0;
     int cascadeIndex = min(dot(splits, cascades), CASCADES_MAX_COUNT - 1);
@@ -74,9 +80,11 @@ uint GetShadowMapIndex(float viewDepth, float dither) {
     float nextSplit = g_cascade_depths[cascadeIndex];
     float splitRange = cascadeIndex == 0 ? nextSplit : nextSplit - g_cascade_depths[cascadeIndex - 1];
     float fadeFactor = (nextSplit - viewDepth) / splitRange;
-    if (fadeFactor <= cascadeFadeTheshold && cascadeIndex < CASCADES_MAX_COUNT - 1) {
+    if (fadeFactor <= cascadeFadeTheshold && cascadeIndex < CASCADES_MAX_COUNT - 1)
+    {
         float lerpAmount = smoothstep(0.0f, cascadeFadeTheshold, fadeFactor);
-        if (lerpAmount < dither) {
+        if (lerpAmount < dither)
+        {
             cascadeIndex++;
         }
     }
@@ -84,11 +92,13 @@ uint GetShadowMapIndex(float viewDepth, float dither) {
     return cascadeIndex;
 }
 
-float2 ClipToUV(float2 clip) {
+float2 ClipToUV(float2 clip)
+{
     return clip * float2(0.5f, -0.5f) + 0.5f;
 }
 
-float Shadow3x3PCF(float3 P, const int cascadeIndex, float invShadowSize) {
+float Shadow3x3PCF(float3 P, const int cascadeIndex, float invShadowSize)
+{
     ByteAddressBuffer lightMatrixBuffer = ResourceDescriptorHeap[g_light_matrix_buffer_index];
     float4x4 lightViewProjection = lightMatrixBuffer.Load<float4x4>(cascadeIndex * sizeof(float4x4));
     float4 lightPos = mul(float4(P, 1), lightViewProjection);
@@ -102,69 +112,75 @@ float Shadow3x3PCF(float3 P, const int cascadeIndex, float invShadowSize) {
     float d4 = dilation * invShadowSize * 0.375f;
     float result = 1.0f;
 
-    if (NonUniformResourceIndex(cascadeIndex) == 0) {
+    if (NonUniformResourceIndex(cascadeIndex) == 0)
+    {
         result = (2.0f * shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv, lightPos.z) +
-            shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d2, d1), lightPos.z) +
-            shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d1, -d2), lightPos.z) +
-            shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d2, -d1), lightPos.z) +
-            shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d1, d2), lightPos.z) +
-            shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d4, d3), lightPos.z) +
-            shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d3, -d4), lightPos.z) +
-            shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d4, -d3), lightPos.z) +
-            shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d3, d4), lightPos.z)) /
-        10.0f;
+                  shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d2, d1), lightPos.z) +
+                  shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d1, -d2), lightPos.z) +
+                  shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d2, -d1), lightPos.z) +
+                  shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d1, d2), lightPos.z) +
+                  shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d4, d3), lightPos.z) +
+                  shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d3, -d4), lightPos.z) +
+                  shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d4, -d3), lightPos.z) +
+                  shadowDepth0.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d3, d4), lightPos.z)) /
+                 10.0f;
     }
-    else if (NonUniformResourceIndex(cascadeIndex) == 1) {
+    else if (NonUniformResourceIndex(cascadeIndex) == 1)
+    {
         result = (2.0f * shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv, lightPos.z) +
-            shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d2, d1), lightPos.z) +
-            shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d1, -d2), lightPos.z) +
-            shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d2, -d1), lightPos.z) +
-            shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d1, d2), lightPos.z) +
-            shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d4, d3), lightPos.z) +
-            shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d3, -d4), lightPos.z) +
-            shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d4, -d3), lightPos.z) +
-            shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d3, d4), lightPos.z)) /
-        10.0f;
+                  shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d2, d1), lightPos.z) +
+                  shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d1, -d2), lightPos.z) +
+                  shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d2, -d1), lightPos.z) +
+                  shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d1, d2), lightPos.z) +
+                  shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d4, d3), lightPos.z) +
+                  shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d3, -d4), lightPos.z) +
+                  shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d4, -d3), lightPos.z) +
+                  shadowDepth1.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d3, d4), lightPos.z)) /
+                 10.0f;
     }
-    else if (NonUniformResourceIndex(cascadeIndex) == 2) {
+    else if (NonUniformResourceIndex(cascadeIndex) == 2)
+    {
         result = (2.0f * shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv, lightPos.z) +
-            shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d2, d1), lightPos.z) +
-            shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d1, -d2), lightPos.z) +
-            shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d2, -d1), lightPos.z) +
-            shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d1, d2), lightPos.z) +
-            shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d4, d3), lightPos.z) +
-            shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d3, -d4), lightPos.z) +
-            shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d4, -d3), lightPos.z) +
-            shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d3, d4), lightPos.z)) /
-        10.0f;
+                  shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d2, d1), lightPos.z) +
+                  shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d1, -d2), lightPos.z) +
+                  shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d2, -d1), lightPos.z) +
+                  shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d1, d2), lightPos.z) +
+                  shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d4, d3), lightPos.z) +
+                  shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d3, -d4), lightPos.z) +
+                  shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d4, -d3), lightPos.z) +
+                  shadowDepth2.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d3, d4), lightPos.z)) /
+                 10.0f;
     }
-    else if (NonUniformResourceIndex(cascadeIndex) == 3) {
+    else if (NonUniformResourceIndex(cascadeIndex) == 3)
+    {
         result = (2.0f * shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv, lightPos.z) +
-            shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d2, d1), lightPos.z) +
-            shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d1, -d2), lightPos.z) +
-            shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d2, -d1), lightPos.z) +
-            shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d1, d2), lightPos.z) +
-            shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d4, d3), lightPos.z) +
-            shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d3, -d4), lightPos.z) +
-            shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d4, -d3), lightPos.z) +
-            shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d3, d4), lightPos.z)) /
-        10.0f;
+                  shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d2, d1), lightPos.z) +
+                  shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d1, -d2), lightPos.z) +
+                  shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d2, -d1), lightPos.z) +
+                  shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d1, d2), lightPos.z) +
+                  shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d4, d3), lightPos.z) +
+                  shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(-d3, -d4), lightPos.z) +
+                  shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d4, -d3), lightPos.z) +
+                  shadowDepth3.SampleCmpLevelZero(g_linear_clamp_cmp_greater_sampler, uv + float2(d3, d4), lightPos.z)) /
+                 10.0f;
     }
 
     return result * result;
 }
 
-float3 ApplyFog(float3 color, float viewDistance, float3 rayDirection, float3 sunDirection, float sunIntensity) {
+float3 ApplyFog(float3 color, float viewDistance, float3 rayDirection, float3 sunDirection, float sunIntensity)
+{
     float fogAmount = 1.0 - exp(-viewDistance * g_fog_density);
     float sunAmount = max(0.0, dot(rayDirection, sunDirection)) * saturate(sunIntensity);
     float3 fogColor = lerp(sRGBToLinear_Float3(g_fog_color), // fog color
-        float3(1.0, 0.95, 0.83),          // sun color
-        pow(sunAmount, 8.0));
+                           float3(1.0, 0.95, 0.83),          // sun color
+                           pow(sunAmount, 8.0));
 
     return lerp(color, fogColor, fogAmount);
 }
 
-float3 CalculateAmbientLight(float3 normalWS, float3 diffuseAlbedo, float intensity) {
+float3 CalculateAmbientLight(float3 normalWS, float3 diffuseAlbedo, float intensity)
+{
     ByteAddressBuffer sh9Buffer = ResourceDescriptorHeap[g_sh9_ambient_buffer_index];
     SH::L2_RGB radianceSH = sh9Buffer.Load<SH::L2_RGB>(0);
     // Dividing albedo by PI makes this effect extremely dark
@@ -172,13 +188,15 @@ float3 CalculateAmbientLight(float3 normalWS, float3 diffuseAlbedo, float intens
     return SH::CalculateIrradiance(radianceSH, normalWS) * intensity * diffuseAlbedo;
 }
 
-float4 PS_MAIN(VsOut Input) : SV_TARGET0 {
+float4 PS_MAIN(VsOut Input) : SV_TARGET0
+{
     ByteAddressBuffer lightsBuffer = ResourceDescriptorHeap[g_lights_buffer_index];
-    GpuLight sun = lightsBuffer.Load<GpuLight>(0);
-    GpuLight moon = lightsBuffer.Load<GpuLight>(1 * sizeof(GpuLight));
+    ByteAddressBuffer visibleLightsBuffer = ResourceDescriptorHeap[g_visible_lights_buffer_index];
+    ByteAddressBuffer visibleLightsCountBuffer = ResourceDescriptorHeap[g_visible_lights_count_buffer_index];
 
     float4 baseColor = SampleLvlTex2D(Get(gBuffer0), Get(g_linear_clamp_edge_sampler), Input.UV, 0);
-    if (baseColor.a <= 0) {
+    if (baseColor.a <= 0)
+    {
         RETURN(float4(0.0, 0.0, 0.0, 0.0));
     }
 
@@ -190,11 +208,13 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET0 {
     const float3 V = normalize(g_cam_pos.xyz - P);
     float3 viewPos = ViewPositionFromDepth(Input.UV, depth, g_inv_proj_mat);
     float linearDepth = viewPos.z;
-    // TODO
     float dither = InterleavedGradientNoise(Input.UV * g_screen_params.xy);
     const uint cascadeIndex = GetShadowMapIndex(linearDepth, dither);
     float attenuation = 1.0f;
-    if (distance(P, g_cam_pos.xyz) < g_cascade_depths.w) {
+    GpuLight sun = lightsBuffer.Load<GpuLight>(0);
+    GpuLight moon = lightsBuffer.Load<GpuLight>(1 * sizeof(GpuLight));
+    if (distance(P, g_cam_pos.xyz) < g_cascade_depths.w)
+    {
         float shadow_intensity = max(sun.shadow_intensity, moon.shadow_intensity);
         attenuation = lerp(1.0, Shadow3x3PCF(P, cascadeIndex, g_shadow_resolution_inverse.x), shadow_intensity);
     }
@@ -210,8 +230,10 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET0 {
 
     float3 Lo = float3(0.0f, 0.0f, 0.0f);
 
-    for (uint i = 0; i < g_lights_count; ++i) {
-        GpuLight light = lightsBuffer.Load<GpuLight>(i * sizeof(GpuLight));
+    uint visible_lights_count = visibleLightsCountBuffer.Load<uint>(0);
+    [loop] for (uint i = 0; i < visible_lights_count; ++i)
+    {
+        GpuLight light = visibleLightsBuffer.Load<GpuLight>(i * sizeof(GpuLight));
         Lo += ShadeLight(light, surfaceInfo, attenuation);
     }
 

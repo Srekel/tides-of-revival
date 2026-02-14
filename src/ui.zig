@@ -232,6 +232,7 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
             .color = [4]f32{ 1, 1, 1, 0 },
             .texture = self.big_window_texture_handle,
         },
+        .render_order = 10,
     });
 
     // Watermark Logo
