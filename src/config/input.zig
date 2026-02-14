@@ -37,21 +37,12 @@ pub const look_pitch = ID("look_pitch");
 pub const journey = ID("journey");
 pub const rest = ID("rest");
 
-pub const draw_bounding_spheres = ID("draw_bounding_spheres");
 pub const camera_switch = ID("camera_switch");
-pub const camera_freeze_rendering = ID("camera_freeze_rendering");
 pub const exit = ID("exit");
-
-pub const view_mode_lit = ID("view_mode_lit");
-pub const view_mode_albedo = ID("view_mode_albedo");
-pub const view_mode_world_normal = ID("view_mode_world_normal");
-pub const view_mode_metallic = ID("view_mode_metallic");
-pub const view_mode_roughness = ID("view_mode_roughness");
-pub const view_mode_ao = ID("view_mode_ao");
-pub const view_mode_depth = ID("view_mode_depth");
 
 pub const reload_shaders = ID("reload_shaders");
 pub const toggle_vsync = ID("toggle_vsync");
+pub const toggle_stats = ID("toggle_stats");
 
 pub const time_speed_up = ID("time_speed_up");
 pub const time_speed_down = ID("time_speed_down");
@@ -86,19 +77,11 @@ pub fn createDefaultTargetDefaults(allocator: std.mem.Allocator) input.TargetMap
         itm.putAssumeCapacity(gamepad_move_y, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(look_yaw, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(look_pitch, input.TargetValue{ .number = 0 });
-        itm.putAssumeCapacity(draw_bounding_spheres, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(camera_switch, input.TargetValue{ .number = 0 });
-        itm.putAssumeCapacity(camera_freeze_rendering, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(exit, input.TargetValue{ .number = 0 });
-        itm.putAssumeCapacity(view_mode_lit, input.TargetValue{ .number = 0 });
-        itm.putAssumeCapacity(view_mode_albedo, input.TargetValue{ .number = 0 });
-        itm.putAssumeCapacity(view_mode_world_normal, input.TargetValue{ .number = 0 });
-        itm.putAssumeCapacity(view_mode_metallic, input.TargetValue{ .number = 0 });
-        itm.putAssumeCapacity(view_mode_roughness, input.TargetValue{ .number = 0 });
-        itm.putAssumeCapacity(view_mode_ao, input.TargetValue{ .number = 0 });
-        itm.putAssumeCapacity(view_mode_depth, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(reload_shaders, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(toggle_vsync, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(toggle_stats, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(time_speed_up, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(time_speed_down, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(time_speed_normal, input.TargetValue{ .number = 0 });
@@ -149,19 +132,11 @@ pub fn createKeyMap(allocator: std.mem.Allocator) input.KeyMap {
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = credits, .source = input.BindingSource{ .keyboard_key = .c } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = journey, .source = input.BindingSource{ .keyboard_key = .space } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = rest, .source = input.BindingSource{ .keyboard_key = .r } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = draw_bounding_spheres, .source = input.BindingSource{ .keyboard_key = .b } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = camera_switch, .source = input.BindingSource{ .keyboard_key = .tab } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = camera_freeze_rendering, .source = input.BindingSource{ .keyboard_key = .x } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = exit, .source = input.BindingSource{ .keyboard_key = .escape } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = view_mode_lit, .source = input.BindingSource{ .keyboard_key = .zero } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = view_mode_albedo, .source = input.BindingSource{ .keyboard_key = .one } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = view_mode_world_normal, .source = input.BindingSource{ .keyboard_key = .two } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = view_mode_metallic, .source = input.BindingSource{ .keyboard_key = .three } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = view_mode_roughness, .source = input.BindingSource{ .keyboard_key = .four } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = view_mode_ao, .source = input.BindingSource{ .keyboard_key = .five } });
-        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = view_mode_depth, .source = input.BindingSource{ .keyboard_key = .six } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = reload_shaders, .source = input.BindingSource{ .keyboard_key = .F9 } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = toggle_vsync, .source = input.BindingSource{ .keyboard_key = .v } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = toggle_stats, .source = input.BindingSource{ .keyboard_key = .F1 } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = time_speed_up, .source = input.BindingSource{ .keyboard_key = .page_up } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = time_speed_down, .source = input.BindingSource{ .keyboard_key = .page_down } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = time_speed_normal, .source = input.BindingSource{ .keyboard_key = .home } });
