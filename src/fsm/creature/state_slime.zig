@@ -378,7 +378,7 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                 const vec_to_player = player_pos_z - self_pos_z;
                 const dist_to_player_sq = zm.lengthSq3(vec_to_player)[0];
                 if (dist_to_player_sq < 1) {
-                    std.log.warn("gameover", .{});
+                    // std.log.warn("gameover", .{});
                     _ = ecs.set(ctx.ecsu_world.world, player_ent, fd.Health, fd.Health{ .value = 0 });
                 }
             }
@@ -532,7 +532,7 @@ const SlimeDropTask = struct {
                     .b = 255.0 / 255.0,
                 },
                 .range = 80,
-                .intensity = 15,
+                .intensity = 20,
             });
 
             const task_data_die = ctx.task_queue.allocateTaskData(3600, DieTask);
@@ -617,7 +617,7 @@ const SplitIfNearPlayer = struct {
         // todo for major slime only after it's been moving towards player for some time
 
         const locomotion = ecs.get(ctx.ecsu_world.world, self.entity, fd.Locomotion).?;
-        if (enemy.base_scale <= 1.4) {
+        if (enemy.base_scale <= 1.5) {
             return .remove;
         }
 
@@ -702,7 +702,7 @@ const SplitIfNearPlayer = struct {
         var ent = ctx.prefab_mgr.instantiatePrefab(ctx.ecsu_world, config.prefab.slime);
         ent.set(pos);
 
-        const base_scale = enemy.base_scale * 0.5;
+        const base_scale = enemy.base_scale * 0.4;
         const rot = fd.Rotation.initFromEulerDegrees(0, std.crypto.random.float(f32) * 360, 0);
         ent.set(fd.Scale.create(1, 1, 1));
         ent.set(rot);
