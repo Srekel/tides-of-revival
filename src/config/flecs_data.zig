@@ -818,7 +818,7 @@ pub const EnvironmentInfo = struct {
     pub fn playFootstep(self: *EnvironmentInfo, footstep_pos: [3]f32, base_scale: f32) void {
         for (&self.slime_footsteps) |*footstep| {
             if (self.world_time - footstep.time_played > 4) {
-                footstep.fx.setVolume(3 + base_scale * 0.5);
+                footstep.fx.setVolume(5 + base_scale * 0.25);
                 footstep.fx.setPitch(1 / base_scale);
                 footstep.fx.setPosition(footstep_pos);
                 footstep.fx.start() catch unreachable;

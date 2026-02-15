@@ -269,7 +269,7 @@ const help2: Text = .{
     .color_end = [4]f32{ 0.0 / 255.0, 0.0 / 255.0, 0.0 / 255.0, 1.0 },
     .lines = &.{
         .{
-            .text = "Tides of Revival: A Sense of Scale. February 2025.",
+            .text = "Tides of Revival: A Sense of Scale. February 2026.",
             .size = 25,
         },
         .{

@@ -306,7 +306,7 @@ pub fn run() void {
     };
 
     var player_pos = if (player_spawn) |ps| ps.pos else fd.Position.init(100, 100, 100);
-    player_pos.x += 20;
+    player_pos.x += 100;
     config.entity.init(player_pos, &prefab_mgr, ecsu_world, &gameloop_context);
 
     // ████████╗██╗███╗   ███╗███████╗██╗     ██╗███╗   ██╗███████╗███████╗

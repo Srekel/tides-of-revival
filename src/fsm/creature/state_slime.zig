@@ -13,6 +13,7 @@ const input = @import("../../input.zig");
 const config = @import("../../config/config.zig");
 const zphy = @import("zphysics");
 const egl_math = @import("../../core/math.zig");
+const renderer = @import("../../renderer/renderer.zig");
 const context = @import("../../core/context.zig");
 const task_queue = @import("../../core/task_queue.zig");
 const im3d = @import("im3d");
@@ -27,6 +28,7 @@ pub const StateContext = struct {
     input_frame_data: *input.FrameData,
     physics_world: *zphy.PhysicsSystem,
     physics_world_low: *zphy.PhysicsSystem,
+    renderer: *renderer.Renderer,
     task_queue: *task_queue.TaskQueue,
 };
 
@@ -282,6 +284,8 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
     const camera_pos_z = zm.loadArr3(camera_pos);
     const is_day = environment_info.time_of_day_percent > 0.9 or environment_info.time_of_day_percent < 0.5;
 
+    var closest_dist_sq: f32 = 10000000;
+
     for (positions, rotations, forwards, bodies, scales, locomotions, enemies, it.entities()) |*pos, *rot, *fwd, *body, *scale, *locomotion, *enemy, ent| {
         _ = ent; // autofix
         if (!lol) {
@@ -383,6 +387,9 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                     // std.log.warn("gameover", .{});
                     _ = ecs.set(ctx.ecsu_world.world, player_ent, fd.Health, fd.Health{ .value = 0 });
                 }
+                if (dist_to_player_sq < closest_dist_sq) {
+                    closest_dist_sq = dist_to_player_sq;
+                }
             }
 
             if (locomotion.sfx_footstep_next_time < environment_info.world_time) {
@@ -406,6 +413,15 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                 pos.y -= 0.1 * it.delta_system_time;
             }
         }
+    }
+
+    if (closest_dist_sq < 40 * 40) {
+        const dist = @max(0.0, std.math.sqrt(closest_dist_sq));
+        const dist_01 = dist / 40;
+        var vignette_settings = &ctx.renderer.post_processing_pass.vignette_settings;
+        vignette_settings.color[0] = std.math.lerp(1, 0, dist_01);
+        vignette_settings.radius = std.math.lerp(0.5, 1, dist_01);
+        vignette_settings.feather = std.math.lerp(0.5, 1, dist_01);
     }
 }
 
@@ -766,23 +782,27 @@ const SplitIfNearPlayer = struct {
             );
         }
 
-        const light_ent = ctx.ecsu_world.newEntity();
-        light_ent.childOf(ent);
-        light_ent.set(fd.Position{ .x = 0, .y = 15, .z = 0 });
-        light_ent.set(fd.Rotation.initFromEulerDegrees(0, std.crypto.random.float(f32), 0));
-        light_ent.set(fd.Scale.createScalar(1));
-        light_ent.set(fd.Transform{});
-        light_ent.set(fd.Dynamic{});
+        const environment_info = ctx.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
+        const is_day = environment_info.time_of_day_percent > 0.9 or environment_info.time_of_day_percent < 0.5;
+        if (!is_day) {
+            const light_ent = ctx.ecsu_world.newEntity();
+            light_ent.childOf(ent);
+            light_ent.set(fd.Position{ .x = 0, .y = 15, .z = 0 });
+            light_ent.set(fd.Rotation.initFromEulerDegrees(0, std.crypto.random.float(f32), 0));
+            light_ent.set(fd.Scale.createScalar(1));
+            light_ent.set(fd.Transform{});
+            light_ent.set(fd.Dynamic{});
 
-        light_ent.set(fd.PointLight{
-            .color = .{
-                .r = 0.2,
-                .g = 0.4,
-                .b = 1.0,
-            },
-            .range = 30,
-            .intensity = 4,
-        });
+            light_ent.set(fd.PointLight{
+                .color = .{
+                    .r = 0.2,
+                    .g = 0.4,
+                    .b = 1.0,
+                },
+                .range = 30,
+                .intensity = 4,
+            });
+        }
     }
 };
 

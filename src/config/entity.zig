@@ -365,7 +365,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         const light_ent = ecsu_world.newEntity();
         light_ent.setName("light");
         light_ent.childOf(ent);
-        light_ent.set(fd.Position{ .x = 0, .y = 7.5, .z = 0 });
+        light_ent.set(fd.Position{ .x = 0, .y = 3.5, .z = 0 });
         light_ent.set(slime_rot);
         light_ent.set(fd.Scale.createScalar(1));
         light_ent.set(fd.Transform{});
