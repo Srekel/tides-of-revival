@@ -11,7 +11,7 @@ import build_licenses
 build_licenses.build_licenses()
 
 release = "A_Sense_Of_Scale"
-build = "Beta"
+build = "Beta5"
 
 os.chdir("..")
 
@@ -55,3 +55,6 @@ print("Zipping to", release_name + ".zip")
 shutil.make_archive(os.path.join("release_build", release_name), "zip", dest_path)
 
 os.chdir("tools")
+
+print("done")
+input()

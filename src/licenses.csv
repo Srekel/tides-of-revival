@@ -1,7 +1,15 @@
 Used	Name	Origin	License
 Y	websocket.zig	https://github.com/karlseguin/websocket.zig	MPL-2.0
-Y	Wwise	https://www.audiokinetic.com/en/products/wwise/	Wwise non-commercial
-Y	wwise-zig	https://github.com/Cold-Bytes-Games/wwise-zig	Apache 2/MIT
 Y	zig-args	https://github.com/MasterQ32/zig-args	MIT
 Y	zig-gamedev	https://github.com/zig-gamedev	MIT
 Y	zigimg	https://github.com/zigimg/zigimg	MIT
+Y	The-Forge	https://github.com/ConfettiFX/The-Forge	Apache-2.0
+Y	c2z	https://github.com/lassade/c2z	Unknown
+Y	im3d	https://github.com/john-chapman/im3d	MIT
+Y	zig-json5	https://github.com/Himujjal/zig-json5.git	MIT
+Y	FastNoiseLite	https://github.com/Auburn/FastNoiseLite	MIT
+Y	Dear Imgui	https://github.com/ocornut/imgui	MIT
+Y	tph_poisson	https://github.com/thinks/poisson-disk-sampling	MIT
+Y	stb	https://github.com/nothings/stb	MIT
+Y	jc_voronoi	https://github.com/JCash/voronoi	MIT
+Y	Zig	https://codeberg.org/ziglang/zig	MIT
