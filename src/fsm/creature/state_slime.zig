@@ -282,7 +282,7 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
     const camera_pos_z = zm.loadArr3(camera_pos);
     const is_day = environment_info.time_of_day_percent > 0.9 or environment_info.time_of_day_percent < 0.5;
 
-    for (positions, rotations, forwards, bodies, scales, locomotions, enemies, it.entities()) |*pos, *rot, *fwd, *body, *scale, *locomotion, enemy, ent| {
+    for (positions, rotations, forwards, bodies, scales, locomotions, enemies, it.entities()) |*pos, *rot, *fwd, *body, *scale, *locomotion, *enemy, ent| {
         _ = ent; // autofix
         if (!lol) {
             lol = true;
@@ -350,10 +350,12 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
         // );
 
         if (body_interface.getMotionType(body.body_id) == .kinematic) {
-            const jiggle = 0.1 + 0.1 * 1.0 / enemy.base_scale;
-            scale.x = @floatCast(enemy.base_scale * (1 + math.sin(world_time * 3.5) * jiggle));
-            scale.y = @floatCast(enemy.base_scale * (1 + math.sin(world_time * 0.3) * 0.05 + math.cos(world_time * 0.5) * 0.05));
-            scale.z = @floatCast(enemy.base_scale * (1 + math.cos(world_time * 2.3) * jiggle));
+            const visual_scale = std.math.lerp(enemy.visual_scale, enemy.base_scale, 0.01);
+            const jiggle = 0.1 + 0.1 * 1.0 / visual_scale;
+            scale.x = @floatCast(visual_scale * (1 + math.sin(world_time * 3.5) * jiggle));
+            scale.y = @floatCast(visual_scale * (1 + math.sin(world_time * 0.3) * 0.05 + math.cos(world_time * 0.5) * 0.05));
+            scale.z = @floatCast(visual_scale * (1 + math.cos(world_time * 2.3) * jiggle));
+            enemy.visual_scale = visual_scale;
 
             if (enemy.aggressive) {
                 locomotion.target_position = player_pos.elemsConst().*;
@@ -366,7 +368,7 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                     pos,
                     rot,
                     locomotion,
-                    &enemy,
+                    enemy,
                     locomotion.target_position.?,
                     is_day,
                     environment_info.journey_state != .not,

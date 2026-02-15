@@ -207,11 +207,11 @@ const outro_win: Text = .{
             .size = 20,
         },
         .{},
-        .{},
         .{
             .text = "--------------------------------------------------------------",
             .anchor_x = 150,
         },
+        .{},
         .{ .anchor_x = -1 },
         .{ .text = "So, what's next for Tides of Revival?" },
         .{ .text = "Well, we have lofty goals!" },
