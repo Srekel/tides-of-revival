@@ -318,7 +318,7 @@ const credits: Text = .{
         .{ .text = "Jurgita Elfgren for wifing", .size = 20, .new_column = true },
         .{ .text = "Ted and Ben Elfgren for playtesting" },
         .{ .text = "Open World Gamedev", .new_column = true },
-        .{ .text = "" },
+        .{ .text = "Jeremy Laumon for Asset Cooker" },
         .{ .text = "" },
         .{ .text = "Production babies", .size = 30, .new_column = true },
         .{ .text = "Martin Elfgren", .size = 20 },

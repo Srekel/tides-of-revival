@@ -74,8 +74,6 @@ As you can see, the hill that we are currently working on is called **A Fort Was
   - https://mastodon.gamedev.place/@srekel
   - https://mastodon.gamedev.place/@gmodarelli
 
-## Join the Development
-
-It's impossible to build a game like Tides without a team. There is an incredible amount of things to do in a lot of different areas and dimensions. We value kindness, diversity, and avoiding stress. Poke me (Anders) on any of my channels if you're interested. :)
-
 Only the source is stored on Github. All content is stored on a private SVN for cost and licensing issues. Let us know if you want to try building and running the game and we can help you out!
+
+All source is licensed as MIT or if you prefer, under the Unlicense. Dependencies (libraries) are listed in licenses.csv, those of course retain their individual license.

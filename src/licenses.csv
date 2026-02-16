@@ -1,15 +1,25 @@
 Used	Name	Origin	License
+Y	c2z	https://github.com/lassade/c2z	Unknown
+Y	cgltf	https://github.com/jkuhlmann/cgltf	MIT
+Y	Dear Imgui	https://github.com/ocornut/imgui	MIT
+Y	FastNoiseLite	https://github.com/Auburn/FastNoiseLite	MIT
+Y	flecs	https://github.com/SanderMertens/flecs	MIT
+Y	glfw	https://github.com/glfw/glfw	MIT
+Y	im3d	https://github.com/john-chapman/im3d	MIT
+Y	jc_voronoi	https://github.com/JCash/voronoi	MIT
+Y	JoltPhysics	https://github.com/jrouwe/JoltPhysics	MIT
+Y	miniaudio	https://github.com/mackron/miniaudio	MIT
+Y	meshoptimizer	https://github.com/zeux/meshoptimizer	MIT
+Y	par_shapes	https://github.com/prideout/par/blob/master/par_shapes.h	MIT
+Y	stb	https://github.com/nothings/stb	MIT
+Y	tracy	https://github.com/wolfpld/tracy	BSD
+Y	The-Forge	https://github.com/ConfettiFX/The-Forge	Apache-2.0
+Y	tph_poisson	https://github.com/thinks/poisson-disk-sampling	MIT
 Y	websocket.zig	https://github.com/karlseguin/websocket.zig	MPL-2.0
+Y	Zig	https://codeberg.org/ziglang/zig	MIT
 Y	zig-args	https://github.com/MasterQ32/zig-args	MIT
 Y	zig-gamedev	https://github.com/zig-gamedev	MIT
-Y	zigimg	https://github.com/zigimg/zigimg	MIT
-Y	The-Forge	https://github.com/ConfettiFX/The-Forge	Apache-2.0
-Y	c2z	https://github.com/lassade/c2z	Unknown
-Y	im3d	https://github.com/john-chapman/im3d	MIT
 Y	zig-json5	https://github.com/Himujjal/zig-json5.git	MIT
-Y	FastNoiseLite	https://github.com/Auburn/FastNoiseLite	MIT
-Y	Dear Imgui	https://github.com/ocornut/imgui	MIT
-Y	tph_poisson	https://github.com/thinks/poisson-disk-sampling	MIT
-Y	stb	https://github.com/nothings/stb	MIT
-Y	jc_voronoi	https://github.com/JCash/voronoi	MIT
-Y	Zig	https://codeberg.org/ziglang/zig	MIT
+Y	zigimg	https://github.com/zigimg/zigimg	MIT
+
+
