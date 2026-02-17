@@ -98,6 +98,8 @@ fn rotateTowardsTarget(
     }
 }
 
+var x_dir: i32 = 1;
+
 fn updateTargetPosition(
     pos: *fd.Position,
     fwd: *fd.Forward,
@@ -138,7 +140,7 @@ fn updateTargetPosition(
     const target_pos_z = zm.loadArr3(locomotion.target_position.?);
     const vec_to_target = (target_pos_z - self_pos_z) * zm.Vec{ 1, 0, 1, 0 };
     const dist_to_target_sq = zm.lengthSq3(vec_to_target)[0];
-    if (dist_to_target_sq > 180 * 180) {
+    if (dist_to_target_sq > 150 * 150) {
         return;
     }
 
@@ -151,13 +153,13 @@ fn updateTargetPosition(
         0,
     };
 
-    const angle_increment: f32 = if (is_day) 6 else 3;
-    const lookahead: f32 = blk: {
-        if (is_day and self_pos_z[1] > 300) break :blk 300;
-        if (!is_day and self_pos_z[1] < 200) break :blk 300;
-        break :blk 200;
-    };
-    const angles = 5;
+    var score_to_best_target: f32 = 100000;
+    const angle_increment: f32 = if (is_day) 4 else 4;
+    const wanted_height: f32 = if (is_day) 100 else 500;
+    // const wanted_angle = x_dir * std.math.pi;
+    const self_height = self_pos_z[1];
+    const lookahead = 250 + @abs(wanted_height - self_height) * 3;
+    const angles = 15;
     for (0..angles) |i_angle| {
         const i_angle_f: f32 = @as(f32, @floatFromInt(i_angle)) - @as(f32, angles / 2);
         const angle_offset = i_angle_f * math.degreesToRadians(angle_increment);
@@ -207,11 +209,14 @@ fn updateTargetPosition(
         //     3,
         // );
 
-        if (height > 500 or height < config.ocean_level + 10) {
-            continue;
-        }
-
-        if ((is_day and height < best_target[1]) or (!is_day and height > best_target[1])) {
+        // if (height > 700 or height < config.ocean_level + 10) {
+        //     continue;
+        // }
+        const close_to_starting_village_cost = 200 - @min(200, best_target[2] - 6000);
+        const dist_to_target = @abs(wanted_height - height);
+        const score_to_target = dist_to_target + close_to_starting_village_cost * 2;
+        if (score_to_target < score_to_best_target) {
+            score_to_best_target = score_to_target;
             best_target = .{
                 ray_origin[0],
                 height,
@@ -220,7 +225,13 @@ fn updateTargetPosition(
         }
     }
 
-    if (best_target[1] > config.ocean_level and best_target[1] < 500) {
+    const above_ocean = best_target[1] + 50 > config.ocean_level;
+    const close_to_edge_x = (best_target[0] < 4000 and x_dir == -1) or (best_target[0] > 14000 and x_dir == 1);
+    const close_to_edge_z = best_target[2] < 2000 or best_target[2] > 14000;
+    const close_to_starting_village = best_target[2] < 8000;
+
+    // const not_mountain = best_target[1] < 600;
+    if (above_ocean and !close_to_edge_x and !close_to_edge_z and !close_to_starting_village) {
         locomotion.target_position = best_target;
         // im3d.Im3d.DrawCone(
         //     &.{
@@ -234,6 +245,10 @@ fn updateTargetPosition(
         //     3,
         // );
     } else {
+        if (close_to_edge_x) {
+            x_dir *= -1;
+        }
+
         const dir_to_center = .{
             config.world_center3[0] - pos.x,
             config.world_center3[1] - pos.y,
@@ -415,13 +430,19 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
         }
     }
 
-    if (closest_dist_sq < 40 * 40) {
-        const dist = @max(0.0, std.math.sqrt(closest_dist_sq));
-        const dist_01 = dist / 40;
+    if (environment_info.rest_state == .not and environment_info.journey_state == .not) {
         var vignette_settings = &ctx.renderer.post_processing_pass.vignette_settings;
-        vignette_settings.color[0] = std.math.lerp(1, 0, dist_01);
-        vignette_settings.radius = std.math.lerp(0.5, 1, dist_01);
-        vignette_settings.feather = std.math.lerp(0.5, 1, dist_01);
+        if (closest_dist_sq < 40 * 40) {
+            const dist = @max(0.0, std.math.sqrt(closest_dist_sq));
+            const dist_01 = dist / 40;
+            vignette_settings.color[0] = std.math.lerp(1, 0, dist_01);
+            vignette_settings.radius = std.math.lerp(0.5, 1, dist_01);
+            vignette_settings.feather = std.math.lerp(0.5, 1, dist_01);
+        } else {
+            vignette_settings.color[0] = std.math.lerp(vignette_settings.color[0], 0, 0.01);
+            vignette_settings.radius = std.math.lerp(vignette_settings.radius, 1, 0.01);
+            vignette_settings.feather = std.math.lerp(vignette_settings.feather, 1, 0.01);
+        }
     }
 }
 
