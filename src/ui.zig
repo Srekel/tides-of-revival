@@ -261,6 +261,9 @@ const help: Text = .{
         .{ .text = "" },
         .{ .text = "Tip: Travel to hilltops with a view. Rest there over night and" },
         .{ .text = "look out for mama slime!" },
+        .{ .text = "" },
+        .{ .text = "Tip: Sometimes it's better to stay a whole extra day on a good spot than to" },
+        .{ .text = "try to find another one." },
     },
 };
 
