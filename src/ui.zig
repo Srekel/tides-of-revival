@@ -224,7 +224,7 @@ const outro_win: Text = .{
         .{ .text = "Our goals include supporting really really big worlds, better debugging," },
         .{ .text = "improved performance, modding support, and more. " },
         .{ .text = "" },
-        .{ .text = "So, Hill 4 will primarily a tech foundation and demo to show off and build off of." },
+        .{ .text = "So, Hill 4 will primarily be a tech foundation and demo to show off and build off of." },
         .{ .text = "" },
         .{ .text = "There's more to be said, but the space is limited! Come join us on our journey!" },
     },
