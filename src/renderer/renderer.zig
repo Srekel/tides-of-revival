@@ -161,6 +161,7 @@ pub const Renderer = struct {
 
     // Shadows
     shadows_enabled: bool = true,
+    terrain_shadows_enabled: bool = true,
     shadow_pssm_factor: f32 = 0.85,
     shadow_cascade_max_distance: f32 = 250,
     shadow_cascade_depths: [cascades_max_count]f32 = undefined,
@@ -975,7 +976,9 @@ pub const Renderer = struct {
                 graphics.cmdSetScissor(cmd_list, 0, 0, cascaded_shadow_resolution, cascaded_shadow_resolution);
 
                 if (self.shadows_enabled) {
-                    self.terrain_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
+                    if (self.terrain_shadows_enabled) {
+                        self.terrain_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
+                    }
                     self.dynamic_geometry_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
                     self.static_geometry_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
                 }
@@ -1412,6 +1415,7 @@ pub const Renderer = struct {
                     _ = zgui.checkbox("Draw Debug Lines", .{ .v = &self.draw_debug_lines });
                     _ = zgui.dragFloat("Shadow Distance", .{ .v = &self.shadow_cascade_max_distance, .speed = 1.0, .min = 100.0, .max = 1500.0 });
                     _ = zgui.checkbox("Render Shadows", .{ .v = &self.shadows_enabled });
+                    _ = zgui.checkbox("Render Terrain Shadows", .{ .v = &self.terrain_shadows_enabled });
                     zgui.text("Cascade 1: {d:.2}", .{self.shadow_cascade_depths[0]});
                     zgui.text("Cascade 2: {d:.2}", .{self.shadow_cascade_depths[1]});
                     zgui.text("Cascade 3: {d:.2}", .{self.shadow_cascade_depths[2]});
