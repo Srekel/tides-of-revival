@@ -6,6 +6,8 @@
 #include "math.hlsli"
 #include "SH.hlsli"
 
+#define TILED_CULLING_BLOCKSIZE 16
+
 RES(SamplerState, g_linear_repeat_sampler, UPDATE_FREQ_NONE, s0, binding = 1);
 RES(SamplerState, g_linear_clamp_edge_sampler, UPDATE_FREQ_NONE, s1, binding = 2);
 RES(SamplerState, g_point_repeat_sampler, UPDATE_FREQ_NONE, s2, binding = 3);
@@ -35,16 +37,17 @@ cbuffer cbFrame : register(b0, UPDATE_FREQ_PER_FRAME)
     float g_far_plane;
     float2 g_shadow_resolution_inverse;
     float4 g_cascade_depths;
-    uint g_lights_buffer_index;
     uint g_light_matrix_buffer_index;
     uint g_sh9_ambient_buffer_index;
-    uint _padding;
+    uint g_lights_count;
+    uint _pad0;
     float3 g_fog_color;
     float g_fog_density;
 };
 
-ByteAddressBuffer g_VisibleLightsCountBuffer : register(t8, UPDATE_FREQ_PER_FRAME);
-ByteAddressBuffer g_VisibleLightsBuffer : register(t9, UPDATE_FREQ_PER_FRAME);
+StructuredBuffer<GpuLight> lights : register(t8, UPDATE_FREQ_PER_FRAME);
+StructuredBuffer<uint> lightIndexList : register(t9, UPDATE_FREQ_PER_FRAME);
+Texture2D<uint2> lightGrid : register(t10, UPDATE_FREQ_PER_FRAME);
 
 STRUCT(VsOut)
 {
@@ -191,8 +194,6 @@ float3 CalculateAmbientLight(float3 normalWS, float3 diffuseAlbedo, float intens
 
 float4 PS_MAIN(VsOut Input) : SV_TARGET0
 {
-    ByteAddressBuffer lightsBuffer = ResourceDescriptorHeap[g_lights_buffer_index];
-
     float4 baseColor = SampleLvlTex2D(Get(gBuffer0), Get(g_linear_clamp_edge_sampler), Input.UV, 0);
     if (baseColor.a <= 0)
     {
@@ -210,8 +211,8 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET0
     float dither = InterleavedGradientNoise(Input.UV * g_screen_params.xy);
     const uint cascadeIndex = GetShadowMapIndex(linearDepth, dither);
     float attenuation = 1.0f;
-    GpuLight sun = lightsBuffer.Load<GpuLight>(0);
-    GpuLight moon = lightsBuffer.Load<GpuLight>(1 * sizeof(GpuLight));
+    GpuLight sun = lights[0];
+    GpuLight moon = lights[1];
     if (distance(P, g_cam_pos.xyz) < g_cascade_depths.w)
     {
         float shadow_intensity = max(sun.shadow_intensity, moon.shadow_intensity);
@@ -229,10 +230,17 @@ float4 PS_MAIN(VsOut Input) : SV_TARGET0
 
     float3 Lo = float3(0.0f, 0.0f, 0.0f);
 
-    uint visible_lights_count = g_VisibleLightsCountBuffer.Load<uint>(0);
-    [loop] for (uint i = 0; i < visible_lights_count; ++i)
+    uint2 positionSS = uint2(Input.UV * g_screen_params.xy);
+    uint2 tileIndex = uint2(floor(positionSS / TILED_CULLING_BLOCKSIZE));
+
+    uint2 lightGridSample = lightGrid[tileIndex].xy;
+    uint startOffset = lightGridSample.x;
+    uint lightCount = lightGridSample.y;
+
+    [loop] for (uint i = 0; i < lightCount; ++i)
     {
-        GpuLight light = g_VisibleLightsBuffer.Load<GpuLight>(i * sizeof(GpuLight));
+        uint lightIndex = lightIndexList[startOffset + i];
+        GpuLight light = lights[lightIndex];
         Lo += ShadeLight(light, surfaceInfo, attenuation);
     }
 

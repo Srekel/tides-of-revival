@@ -95,13 +95,8 @@ float4 PS_MAIN(VSOutput Input) : SV_TARGET0
 
     float3 Lo = float3(0.0f, 0.0f, 0.0f);
 
-    ByteAddressBuffer lightsBuffer = ResourceDescriptorHeap[g_lights_buffer_index];
-    // for (uint i = 0; i < g_lights_count; ++i)
-    for (uint i = 0; i < 1; ++i)
-    {
-        GpuLight light = lightsBuffer.Load<GpuLight>(i * sizeof(GpuLight));
-        Lo += ShadeLight(light, surfaceInfo, 1.0f);
-    }
+    GpuLight sun = lights[0];
+    Lo += ShadeLight(sun, surfaceInfo, 1.0f);
 
     // Simple depth-based fog
     float view_distance = length(g_cam_pos.xyz - Input.PositionWS.xyz);

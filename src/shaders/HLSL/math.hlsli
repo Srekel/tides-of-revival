@@ -179,4 +179,132 @@ float InterleavedGradientNoise(float2 uv, float offset)
     return frac(magic.z * frac(dot(uv, magic.xy)));
 }
 
+// From: https://www.3dgep.com/forward-plus/#Forward
+
+struct Sphere
+{
+    float3 c;
+    float r;
+};
+
+struct Cone
+{
+    float3 T; // Cone tip
+    float h;  // Height of the cone
+    float3 d; // Direction of the cone
+    float r;  // Bottom radius of the cone
+};
+
+struct Plane
+{
+    float3 N; // Plane normal
+    float d;  // Distance to origin
+};
+
+struct Frustum
+{
+    Plane planes[4]; // left, right, top, bottom frustum planes
+};
+
+// Compute a plane from 3 non-collinear points that form a triangle.
+// This equation assumes a right-handed (counter-clockwise winding order)
+// coordinate system to determine the direction of the plane normal
+Plane ComputePlane(float3 p0, float3 p1, float3 p2)
+{
+    Plane plane;
+
+    float3 v0 = p1 - p0;
+    float3 v2 = p2 - p0;
+    plane.N = normalize(cross(v0, v2));
+    plane.d = dot(plane.N, p0);
+
+    return plane;
+}
+
+// Check to see if a point is fully behind (inside the negative halfspace of) a plane.
+bool PointInsidePlane(float3 p, Plane plane)
+{
+    return dot(plane.N, p) - plane.d < 0;
+}
+
+// Check to see if a sphere is fully behind (inside the negative halfspace of) a plane.
+// Source: Real-time collision detection, Christer Ericson (2005)
+bool SphereInsidePlane(Sphere sphere, Plane plane)
+{
+    return dot(plane.N, sphere.c) - plane.d < -sphere.r;
+}
+
+// Check to see if a cone if fully behind (inside the negative halfspace of) a plane.
+// Source: Real-time collision detection, Christer Ericson (2005)
+bool ConeInsidePlane(Cone cone, Plane plane)
+{
+    // Compute the farthest point on the end of the cone to the positive space of the plane.
+    float3 m = cross(cross(plane.N, cone.d), cone.d);
+    float3 Q = cone.T + cone.d * cone.h - m * cone.r;
+
+    // The cone is in the negative halfspace of the plane if both
+    // the tip of the cone and the farthest point on the end of the cone to the
+    // positive halfspace of the plane are both inside the negative halfspace
+    // of the plane.
+    return PointInsidePlane(cone.T, plane) && PointInsidePlane(Q, plane);
+}
+
+// Check to see if a point light is partially contained within the frustum
+// Adapted from Wicked
+bool SphereInsideFrustum(Sphere sphere, Frustum frustum, float zNear, float zFar)
+{
+    bool result = true;
+
+    // // First check depth
+    // // NOTE: The view vector points in the -Z axis so the
+    // // far depth value will be approaching -infinity
+    // // NOTE: This works for a right-handed coordinate system.
+    // // Swap zNear and zFar if a left-handed coordinate system is used
+    // if (sphere.c.z - sphere.r > zNear || sphere.c.z + sphere.r < zFar)
+    // {
+    //     result = false;
+    // }
+
+    // // The check the frustum planes
+    // for (uint i = 0; i < 4 && result; i++)
+    // {
+    //     if (SphereInsidePlane(sphere, frustum.planes[i]))
+    //     {
+    //         result = false;
+    //     }
+    // }
+    result = ((sphere.c.z + sphere.r < zNear || sphere.c.z - sphere.r > zFar) ? false : result);
+    result = ((SphereInsidePlane(sphere, frustum.planes[0])) ? false : result);
+    result = ((SphereInsidePlane(sphere, frustum.planes[1])) ? false : result);
+    result = ((SphereInsidePlane(sphere, frustum.planes[2])) ? false : result);
+    result = ((SphereInsidePlane(sphere, frustum.planes[3])) ? false : result);
+
+    return result;
+}
+
+bool ConeInsideFrustum(Cone cone, Frustum frustum, float zNear, float zFar)
+{
+    bool result = true;
+
+    Plane nearPlane = {float3(0, 0, -1), -zNear};
+    Plane farPlane = {float3(0, 0, 1), zFar};
+
+    // First check the near and far clipping planes
+    if (ConeInsidePlane(cone, nearPlane) || ConeInsidePlane(cone, farPlane))
+    {
+        result = false;
+    }
+
+    // The check the frustum planes
+    for (uint i = 0; i < 4 && result; i++)
+    {
+        if (ConeInsidePlane(cone, frustum.planes[i]))
+        {
+            result = false;
+        }
+    }
+
+    return result;
+}
+
 #endif // _MATH_HLSLI_

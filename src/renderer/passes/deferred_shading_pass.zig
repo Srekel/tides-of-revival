@@ -12,6 +12,8 @@ const zgui = @import("zgui");
 const zm = @import("zmath");
 const ztracy = @import("ztracy");
 
+const tiling_cull_block_size = 16;
+
 const UniformFrameData = struct {
     projection_inverted: [16]f32,
     projection_view_inverted: [16]f32,
@@ -21,20 +23,23 @@ const UniformFrameData = struct {
     far_plane: f32,
     shadow_resolution_inverse: [2]f32,
     cascade_splits: [renderer.Renderer.cascades_max_count]f32,
-    lights_buffer_index: u32,
     light_matrix_buffer_index: u32,
     sh9_buffer_index: u32,
-    _padding: u32,
+    lights_count: u32,
+    _pad0: u32,
     fog_color: [3]f32,
     fog_density: f32,
 };
 
 pub const LightCullingParams = struct {
-    view_projection: [16]f32,
-    camera_position: [3]f32,
+    view: [16]f32,
+    proj_inverse: [16]f32,
+    screen_dimensions: [2]f32,
+    _pad0: [2]f32,
+    num_thread_groups: [3]u32,
     lights_count: u32,
-    lights_buffer_index: u32,
-    _padding: [3]u32,
+    num_threads: [3]u32,
+    _pad1: u32,
 };
 
 pub const DeferredShadingPass = struct {
@@ -45,10 +50,10 @@ pub const DeferredShadingPass = struct {
     deferred_descriptor_sets: [2][*c]graphics.DescriptorSet,
 
     light_culling_frame_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
-    light_culling_clear_descriptor_sets: [*c]graphics.DescriptorSet,
     light_culling_descriptor_sets: [*c]graphics.DescriptorSet,
-    visible_lights_count_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
-    visible_lights_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
+    light_culling_clear_descriptor_sets: [*c]graphics.DescriptorSet,
+    light_index_counter_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
+    light_index_list_buffers: [renderer.Renderer.data_buffer_count]renderer.BufferHandle,
 
     pub fn init(self: *@This(), rctx: *renderer.Renderer, allocator: std.mem.Allocator) void {
         self.allocator = allocator;
@@ -79,10 +84,10 @@ pub const DeferredShadingPass = struct {
                 .start_state = .RESOURCE_STATE_COMMON,
                 .size = @sizeOf(u32) * 16,
                 .element_size = @sizeOf(u32),
-                .debug_name = "Visible Lights Counts",
+                .debug_name = "Light Index Counter",
             };
 
-            self.visible_lights_count_buffers[frame_index] = rctx.createBuffer(buffer_creation_desc);
+            self.light_index_counter_buffers[frame_index] = rctx.createBuffer(buffer_creation_desc);
         }
 
         for (0..renderer.Renderer.data_buffer_count) |frame_index| {
@@ -90,12 +95,12 @@ pub const DeferredShadingPass = struct {
                 .bindless = false,
                 .descriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW.bits },
                 .start_state = .RESOURCE_STATE_COMMON,
-                .size = @sizeOf(renderer_types.GpuLight) * 10 * 1024,
-                .element_size = @sizeOf(renderer_types.GpuLight),
-                .debug_name = "Visible Lights",
+                .size = @sizeOf(u32) * 2 * 1024 * 1024,
+                .element_size = @sizeOf(u32),
+                .debug_name = "Light Index List",
             };
 
-            self.visible_lights_buffers[frame_index] = rctx.createBuffer(buffer_creation_desc);
+            self.light_index_list_buffers[frame_index] = rctx.createBuffer(buffer_creation_desc);
         }
     }
 
@@ -121,10 +126,16 @@ pub const DeferredShadingPass = struct {
             defer trazy_zone2.End();
 
             var params = std.mem.zeroes(LightCullingParams);
-            zm.storeMat(&params.view_projection, zm.transpose(render_view.view_projection));
+            zm.storeMat(&params.view, render_view.view);
+            zm.storeMat(&params.proj_inverse, render_view.projection_inverse);
+            params.screen_dimensions = render_view.viewport;
+            params.num_thread_groups[0] = @intFromFloat(std.math.ceil(render_view.viewport[0] / tiling_cull_block_size));
+            params.num_thread_groups[1] = @intFromFloat(std.math.ceil(render_view.viewport[1] / tiling_cull_block_size));
+            params.num_thread_groups[2] = 1;
+            params.num_threads[0] = params.num_thread_groups[0] * tiling_cull_block_size;
+            params.num_threads[1] = params.num_thread_groups[1] * tiling_cull_block_size;
+            params.num_threads[2] = 1;
             params.lights_count = self.renderer.light_buffer.element_count;
-            params.lights_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.light_buffer.buffer);
-            params.camera_position = [3]f32{ camera_position[0], camera_position[1], camera_position[2] };
 
             const data = OpaqueSlice{
                 .data = @ptrCast(&params),
@@ -132,14 +143,18 @@ pub const DeferredShadingPass = struct {
             };
             self.renderer.updateBuffer(data, 0, LightCullingParams, self.light_culling_frame_buffers[frame_index]);
 
-            const visible_lights_count_buffer = self.renderer.getBuffer(self.visible_lights_count_buffers[frame_index]);
-            const visible_lights_buffer = self.renderer.getBuffer(self.visible_lights_buffers[frame_index]);
+            const light_index_counter_buffer = self.renderer.getBuffer(self.light_index_counter_buffers[frame_index]);
+            const light_index_list_buffer = self.renderer.getBuffer(self.light_index_list_buffers[frame_index]);
+            const light_grid = self.renderer.getTexture(self.renderer.light_grid[frame_index]);
             {
                 const buffer_barriers = [_]graphics.BufferBarrier{
-                    graphics.BufferBarrier.init(visible_lights_buffer, .RESOURCE_STATE_COMMON, .RESOURCE_STATE_UNORDERED_ACCESS),
-                    graphics.BufferBarrier.init(visible_lights_count_buffer, .RESOURCE_STATE_COMMON, .RESOURCE_STATE_UNORDERED_ACCESS),
+                    graphics.BufferBarrier.init(light_index_list_buffer, .RESOURCE_STATE_COMMON, .RESOURCE_STATE_UNORDERED_ACCESS),
+                    graphics.BufferBarrier.init(light_index_counter_buffer, .RESOURCE_STATE_COMMON, .RESOURCE_STATE_UNORDERED_ACCESS),
                 };
-                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+                const texture_barriers = [_]graphics.TextureBarrier{
+                    graphics.TextureBarrier.init(light_grid, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS),
+                };
+                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), texture_barriers.len, @constCast(&texture_barriers), 0, null);
             }
 
             // Clear
@@ -157,15 +172,18 @@ pub const DeferredShadingPass = struct {
                 const pipeline = self.renderer.getPSO(pipeline_id);
                 graphics.cmdBindPipeline(cmd_list, pipeline);
                 graphics.cmdBindDescriptorSet(cmd_list, frame_index, self.light_culling_descriptor_sets);
-                graphics.cmdDispatch(cmd_list, (self.renderer.light_buffer.element_count / 32) + 1, 1, 1);
+                graphics.cmdDispatch(cmd_list, params.num_thread_groups[0], params.num_thread_groups[1], params.num_thread_groups[2]);
             }
 
             {
                 const buffer_barriers = [_]graphics.BufferBarrier{
-                    graphics.BufferBarrier.init(visible_lights_buffer, .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_COMMON),
-                    graphics.BufferBarrier.init(visible_lights_count_buffer, .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_COMMON),
+                    graphics.BufferBarrier.init(light_index_counter_buffer, .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_COMMON),
+                    graphics.BufferBarrier.init(light_index_list_buffer, .RESOURCE_STATE_UNORDERED_ACCESS, .RESOURCE_STATE_COMMON),
                 };
-                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), 0, null, 0, null);
+                const texture_barriers = [_]graphics.TextureBarrier{
+                    graphics.TextureBarrier.init(light_grid, graphics.ResourceState.RESOURCE_STATE_UNORDERED_ACCESS, graphics.ResourceState.RESOURCE_STATE_SHADER_RESOURCE),
+                };
+                graphics.cmdResourceBarrier(cmd_list, buffer_barriers.len, @constCast(&buffer_barriers), texture_barriers.len, @constCast(&texture_barriers), 0, null);
             }
         }
 
@@ -180,7 +198,7 @@ pub const DeferredShadingPass = struct {
             frame_data.screen_params = [4]f32{ render_view.viewport[0], render_view.viewport[1], 1.0 / render_view.viewport[0], 1.0 / render_view.viewport[1] };
             frame_data.camera_position = [4]f32{ camera_position[0], camera_position[1], camera_position[2], 1.0 };
             frame_data.cascade_splits = self.renderer.shadow_cascade_depths;
-            frame_data.lights_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.light_buffer.buffer);
+            frame_data.lights_count = self.renderer.light_buffer.element_count;
             frame_data.light_matrix_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.light_matrix_buffer.buffer);
             frame_data.sh9_buffer_index = self.renderer.getSH9BufferIndex();
             frame_data.fog_color = self.renderer.height_fog_settings.color;
@@ -224,11 +242,11 @@ pub const DeferredShadingPass = struct {
             var desc = std.mem.zeroes(graphics.DescriptorSetDesc);
             desc.mUpdateFrequency = graphics.DescriptorUpdateFrequency.DESCRIPTOR_UPDATE_FREQ_PER_FRAME;
             desc.mMaxSets = renderer.Renderer.data_buffer_count;
-            desc.pRootSignature = self.renderer.getRootSignature(IdLocal.init("light_cull_clear"));
-            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.light_culling_clear_descriptor_sets));
-
             desc.pRootSignature = self.renderer.getRootSignature(IdLocal.init("light_cull"));
             graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.light_culling_descriptor_sets));
+
+            desc.pRootSignature = self.renderer.getRootSignature(IdLocal.init("light_cull_clear"));
+            graphics.addDescriptorSet(self.renderer.renderer, &desc, @ptrCast(&self.light_culling_clear_descriptor_sets));
         }
     }
 
@@ -237,8 +255,9 @@ pub const DeferredShadingPass = struct {
             var params: [8]graphics.DescriptorData = undefined;
 
             for (0..renderer.Renderer.data_buffer_count) |i| {
-                var visible_lights_count_buffer = self.renderer.getBuffer(self.visible_lights_count_buffers[i]);
-                var visible_lights_buffer = self.renderer.getBuffer(self.visible_lights_buffers[i]);
+                var light_index_list_buffer = self.renderer.getBuffer(self.light_index_list_buffers[i]);
+                var light_grid = self.renderer.getTexture(self.renderer.light_grid[i]);
+                var lights_buffer = self.renderer.getBuffer(self.renderer.light_buffer.buffer);
 
                 params[0] = std.mem.zeroes(graphics.DescriptorData);
                 params[0].pName = "gBuffer0";
@@ -271,47 +290,50 @@ pub const DeferredShadingPass = struct {
                 params[0].pName = "cbFrame";
                 params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
                 params[1] = std.mem.zeroes(graphics.DescriptorData);
-                params[1].pName = "g_VisibleLightsCountBuffer";
-                params[1].__union_field3.ppBuffers = @ptrCast(&visible_lights_count_buffer);
+                params[1].pName = "lightIndexList";
+                params[1].__union_field3.ppBuffers = @ptrCast(&light_index_list_buffer);
                 params[2] = std.mem.zeroes(graphics.DescriptorData);
-                params[2].pName = "g_VisibleLightsBuffer";
-                params[2].__union_field3.ppBuffers = @ptrCast(&visible_lights_buffer);
+                params[2].pName = "lightGrid";
+                params[2].__union_field3.ppTextures = @ptrCast(&light_grid);
+                params[3] = std.mem.zeroes(graphics.DescriptorData);
+                params[3].pName = "lights";
+                params[3].__union_field3.ppBuffers = @ptrCast(&lights_buffer);
 
-                graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.deferred_descriptor_sets[1], 3, @ptrCast(&params));
+                graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.deferred_descriptor_sets[1], 4, @ptrCast(&params));
             }
         }
 
         {
-            var params: [4]graphics.DescriptorData = undefined;
+            var params: [5]graphics.DescriptorData = undefined;
 
             for (0..renderer.Renderer.data_buffer_count) |i| {
                 var uniform_buffer = self.renderer.getBuffer(self.light_culling_frame_buffers[i]);
-                var debug_uniform_buffer = self.renderer.getBuffer(self.renderer.debug_frame_uniform_buffers[i]);
-                var visible_lights_count_buffer = self.renderer.getBuffer(self.visible_lights_count_buffers[i]);
-                var visible_lights_buffer = self.renderer.getBuffer(self.visible_lights_buffers[i]);
+                var light_index_counter_buffer = self.renderer.getBuffer(self.light_index_counter_buffers[i]);
+                var light_index_list_buffer = self.renderer.getBuffer(self.light_index_list_buffers[i]);
+                var light_grid = self.renderer.getTexture(self.renderer.light_grid[i]);
+                var lights_buffer = self.renderer.getBuffer(self.renderer.light_buffer.buffer);
 
                 params[0] = std.mem.zeroes(graphics.DescriptorData);
-                params[0].pName = "g_Params";
+                params[0].pName = "g_DispatchParams";
                 params[0].__union_field3.ppBuffers = @ptrCast(&uniform_buffer);
                 params[1] = std.mem.zeroes(graphics.DescriptorData);
-                params[1].pName = "g_DebugFrame";
-                params[1].__union_field3.ppBuffers = @ptrCast(&debug_uniform_buffer);
+                params[1].pName = "g_LightIndexCounter";
+                params[1].__union_field3.ppBuffers = @ptrCast(&light_index_counter_buffer);
                 params[2] = std.mem.zeroes(graphics.DescriptorData);
-                params[2].pName = "g_VisibleLightsCountBuffer";
-                params[2].__union_field3.ppBuffers = @ptrCast(&visible_lights_count_buffer);
+                params[2].pName = "g_LightIndexList";
+                params[2].__union_field3.ppBuffers = @ptrCast(&light_index_list_buffer);
                 params[3] = std.mem.zeroes(graphics.DescriptorData);
-                params[3].pName = "g_VisibleLightsBuffer";
-                params[3].__union_field3.ppBuffers = @ptrCast(&visible_lights_buffer);
+                params[3].pName = "g_LightGrid";
+                params[3].__union_field3.ppTextures = @ptrCast(&light_grid);
+                params[4] = std.mem.zeroes(graphics.DescriptorData);
+                params[4].pName = "g_Lights";
+                params[4].__union_field3.ppBuffers = @ptrCast(&lights_buffer);
 
                 graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.light_culling_descriptor_sets, params.len, @ptrCast(&params));
-            }
 
-            for (0..renderer.Renderer.data_buffer_count) |i| {
-                var visible_lights_count_buffer = self.renderer.getBuffer(self.visible_lights_count_buffers[i]);
                 params[0] = std.mem.zeroes(graphics.DescriptorData);
-                params[0].pName = "g_VisibleLightsCountBuffer";
-                params[0].__union_field3.ppBuffers = @ptrCast(&visible_lights_count_buffer);
-
+                params[0].pName = "g_LightIndexCounter";
+                params[0].__union_field3.ppBuffers = @ptrCast(&light_index_counter_buffer);
                 graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.light_culling_clear_descriptor_sets, 1, @ptrCast(&params));
             }
         }
@@ -320,7 +342,7 @@ pub const DeferredShadingPass = struct {
     pub fn unloadDescriptorSets(self: *@This()) void {
         graphics.removeDescriptorSet(self.renderer.renderer, self.deferred_descriptor_sets[0]);
         graphics.removeDescriptorSet(self.renderer.renderer, self.deferred_descriptor_sets[1]);
-        graphics.removeDescriptorSet(self.renderer.renderer, self.light_culling_clear_descriptor_sets);
         graphics.removeDescriptorSet(self.renderer.renderer, self.light_culling_descriptor_sets);
+        graphics.removeDescriptorSet(self.renderer.renderer, self.light_culling_clear_descriptor_sets);
     }
 };

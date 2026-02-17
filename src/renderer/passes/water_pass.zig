@@ -22,10 +22,10 @@ pub const UniformFrameData = struct {
     projection_view_inverted: [16]f32,
     camera_position: [4]f32,
     depth_buffer_parameters: [4]f32,
-    lights_buffer_index: u32,
     lights_count: u32,
     time: f32,
     caustics_texture_index: u32,
+    _pad0: u32,
     fog_color: [3]f32,
     fog_density: f32,
 
@@ -165,7 +165,6 @@ pub const WaterPass = struct {
             const far = render_view.far_plane;
             frame_data.depth_buffer_parameters = [4]f32{ far / near - 1.0, 1, (1 / near - 1 / far), 1 / far };
             frame_data.time = @floatCast(self.renderer.time);
-            frame_data.lights_buffer_index = self.renderer.getBufferBindlessIndex(self.renderer.light_buffer.buffer);
             frame_data.lights_count = self.renderer.light_buffer.element_count;
             frame_data.fog_color = self.renderer.height_fog_settings.color;
             frame_data.fog_density = self.renderer.height_fog_settings.density;
@@ -289,10 +288,11 @@ pub const WaterPass = struct {
     }
 
     pub fn prepareDescriptorSets(self: *@This()) void {
-        var params: [3]graphics.DescriptorData = undefined;
+        var params: [4]graphics.DescriptorData = undefined;
 
         for (0..renderer.Renderer.data_buffer_count) |i| {
             var uniform_frame_buffer = self.renderer.getBuffer(self.uniform_frame_buffers[i]);
+            var lights_buffer = self.renderer.getBuffer(self.renderer.light_buffer.buffer);
 
             params[0] = std.mem.zeroes(graphics.DescriptorData);
             params[0].pName = "cbFrame";
@@ -303,6 +303,9 @@ pub const WaterPass = struct {
             params[2] = std.mem.zeroes(graphics.DescriptorData);
             params[2].pName = "g_depth_buffer";
             params[2].__union_field3.ppTextures = @ptrCast(&self.renderer.depth_buffer_copy.*.pTexture);
+            params[3] = std.mem.zeroes(graphics.DescriptorData);
+            params[3].pName = "lights";
+            params[3].__union_field3.ppBuffers = @ptrCast(&lights_buffer);
 
             graphics.updateDescriptorSet(self.renderer.renderer, @intCast(i), self.water_descriptor_sets, params.len, @ptrCast(&params));
 

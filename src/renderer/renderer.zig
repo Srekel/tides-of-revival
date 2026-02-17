@@ -121,7 +121,7 @@ pub const Renderer = struct {
     // GPU Bindless Buffers
     // ====================
     // These buffers are accessible to all shaders
-    light_buffer: ElementBindlessBuffer = undefined,
+    light_buffer: ElementBuffer = undefined,
     light_matrix_buffer: ElementBindlessBuffer = undefined,
     mesh_buffer: ElementBindlessBuffer = undefined,
     material_buffer: ElementBindlessBuffer = undefined,
@@ -160,6 +160,7 @@ pub const Renderer = struct {
     linear_depth_buffers: [2]TextureHandle = .{ undefined, undefined },
 
     // Shadows
+    shadows_enabled: bool = true,
     shadow_pssm_factor: f32 = 0.85,
     shadow_cascade_max_distance: f32 = 250,
     shadow_cascade_depths: [cascades_max_count]f32 = undefined,
@@ -174,6 +175,7 @@ pub const Renderer = struct {
     // Lighting
     scene_color: [*c]graphics.RenderTarget = null,
     scene_color_copy: [*c]graphics.RenderTarget = null,
+    light_grid: [data_buffer_count]TextureHandle = .{ undefined, undefined },
 
     // Bloom Render Targets
     bloom_width: u32 = 0,
@@ -972,9 +974,11 @@ pub const Renderer = struct {
                 graphics.cmdSetViewport(cmd_list, 0.0, 0.0, shadow_map_resolution, shadow_map_resolution, 0.0, 1.0);
                 graphics.cmdSetScissor(cmd_list, 0, 0, cascaded_shadow_resolution, cascaded_shadow_resolution);
 
-                // self.terrain_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
-                self.dynamic_geometry_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
-                self.static_geometry_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
+                if (self.shadows_enabled) {
+                    self.terrain_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
+                    self.dynamic_geometry_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
+                    self.static_geometry_pass.renderShadowMap(cmd_list, self.shadow_views[cascade_index], @intCast(cascade_index));
+                }
 
                 input_barriers[0].mCurrentState = .RESOURCE_STATE_DEPTH_WRITE;
                 input_barriers[0].mNewState = .RESOURCE_STATE_SHADER_RESOURCE;
@@ -1407,6 +1411,7 @@ pub const Renderer = struct {
                     _ = zgui.checkbox("VSync", .{ .v = &self.vsync_enabled });
                     _ = zgui.checkbox("Draw Debug Lines", .{ .v = &self.draw_debug_lines });
                     _ = zgui.dragFloat("Shadow Distance", .{ .v = &self.shadow_cascade_max_distance, .speed = 1.0, .min = 100.0, .max = 1500.0 });
+                    _ = zgui.checkbox("Render Shadows", .{ .v = &self.shadows_enabled });
                     zgui.text("Cascade 1: {d:.2}", .{self.shadow_cascade_depths[0]});
                     zgui.text("Cascade 2: {d:.2}", .{self.shadow_cascade_depths[1]});
                     zgui.text("Cascade 3: {d:.2}", .{self.shadow_cascade_depths[2]});
@@ -2420,6 +2425,23 @@ pub const Renderer = struct {
             graphics.addRenderTarget(self.renderer, &rt_desc, &self.scene_color);
             rt_desc.pName = "Scene Color Copy";
             graphics.addRenderTarget(self.renderer, &rt_desc, &self.scene_color_copy);
+
+            var texture_desc = std.mem.zeroes(graphics.TextureDesc);
+            texture_desc.mDepth = 1;
+            texture_desc.mArraySize = 1;
+            texture_desc.mMipLevels = 1;
+            texture_desc.mStartState = .RESOURCE_STATE_SHADER_RESOURCE;
+            texture_desc.mDescriptors = .{ .bits = graphics.DescriptorType.DESCRIPTOR_TYPE_TEXTURE.bits | graphics.DescriptorType.DESCRIPTOR_TYPE_RW_TEXTURE.bits };
+            texture_desc.mSampleCount = graphics.SampleCount.SAMPLE_COUNT_1;
+            texture_desc.bBindless = false;
+            texture_desc.mFormat = graphics.TinyImageFormat.R32G32_UINT;
+            texture_desc.mWidth = @intFromFloat(std.math.ceil(@as(f32, @floatFromInt(self.window_width)) / 16.0));
+            texture_desc.mHeight = @intFromFloat(std.math.ceil(@as(f32, @floatFromInt(self.window_height)) / 16.0));
+            texture_desc.pName = "Light Grid";
+
+            for (0..data_buffer_count) |frame_index| {
+                self.light_grid[frame_index] = self.createTexture(texture_desc);
+            }
         }
 
         createBloomUAVs(self);
@@ -2434,6 +2456,11 @@ pub const Renderer = struct {
         texture = self.getTexture(self.linear_depth_buffers[1]);
         resource_loader.removeResource__Overload2(texture);
         self.texture_pool.removeAssumeLive(self.linear_depth_buffers[1]);
+        for (0..data_buffer_count) |frame_index| {
+            texture = self.getTexture(self.light_grid[frame_index]);
+            resource_loader.removeResource__Overload2(texture);
+            self.texture_pool.removeAssumeLive(self.light_grid[frame_index]);
+        }
 
         for (0..cascades_max_count) |i| {
             graphics.removeRenderTarget(self.renderer, self.shadow_depth_buffers[i]);
@@ -2656,6 +2683,38 @@ pub const ElementBindlessBuffer = struct {
             .descriptors = graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW,
             .start_state = .RESOURCE_STATE_SHADER_RESOURCE,
             .size = self.size,
+            .debug_name = debug_name,
+        };
+
+        if (uav) {
+            buffer_creation_desc.descriptors.bits |= graphics.DescriptorType.DESCRIPTOR_TYPE_RW_BUFFER_RAW.bits;
+        }
+
+        self.buffer = renderer.createBuffer(buffer_creation_desc);
+    }
+};
+
+pub const ElementBuffer = struct {
+    mutex: std.Thread.Mutex = undefined,
+    buffer: BufferHandle = undefined,
+    stride: u64 = 0,
+    size: u64 = 0,
+    offset: u64 = 0,
+    element_count: u32 = 0,
+
+    pub fn init(self: *@This(), renderer: *Renderer, elements_count_limit: u64, stride: usize, uav: bool, debug_name: []const u8) void {
+        self.mutex = std.Thread.Mutex{};
+        self.size = elements_count_limit * stride;
+        self.stride = stride;
+        self.offset = 0;
+        self.element_count = 0;
+
+        var buffer_creation_desc = BufferCreationDesc{
+            .bindless = false,
+            .descriptors = graphics.DescriptorType.DESCRIPTOR_TYPE_BUFFER_RAW,
+            .start_state = .RESOURCE_STATE_SHADER_RESOURCE,
+            .size = self.size,
+            .element_size = self.stride,
             .debug_name = debug_name,
         };
 

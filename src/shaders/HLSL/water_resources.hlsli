@@ -9,6 +9,7 @@ SamplerState g_linear_clamp_edge_sampler : register(s1, UPDATE_FREQ_NONE);
 
 Texture2D<float4> g_scene_color : register(t0, UPDATE_FREQ_PER_FRAME);
 Texture2D<float> g_depth_buffer : register(t1, UPDATE_FREQ_PER_FRAME);
+StructuredBuffer<GpuLight> lights : register(t2, UPDATE_FREQ_PER_FRAME);
 
 cbuffer RootConstant : register(b0)
 {
@@ -22,10 +23,10 @@ cbuffer cbFrame : register(b1, UPDATE_FREQ_PER_FRAME)
 	float4x4 g_inv_proj_view_mat;
 	float4 g_cam_pos;
 	float4 g_depth_buffer_params;
-	uint g_lights_buffer_index;
 	uint g_lights_count;
 	float g_time;
 	uint m_caustics_texture_index;
+	uint _pad0;
 	float3 g_fog_color;
 	float g_fog_density;
 
