@@ -393,52 +393,6 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
         doText(intro, left + 120, bottom + 50, &self.intro_text_ents);
     }
 
-    // Outro
-    {
-        const texture = renderer_ctx.getTexture(self.big_window_texture_handle);
-        const width: f32 = @floatFromInt(texture[0].bitfield_1.mWidth);
-        const height: f32 = @floatFromInt(texture[0].bitfield_1.mHeight);
-
-        const left = window_size_x / 2 - width / 2;
-        const bottom = window_size_y / 2 - height / 2;
-
-        doText(outro_game_over, left + 120, bottom + 50, &self.outro_game_over_text_ents);
-    }
-    {
-        const texture = renderer_ctx.getTexture(self.big_window_texture_handle);
-        const width: f32 = @floatFromInt(texture[0].bitfield_1.mWidth);
-        const height: f32 = @floatFromInt(texture[0].bitfield_1.mHeight);
-
-        const left = window_size_x / 2 - width / 2;
-        const bottom = window_size_y / 2 - height / 2;
-
-        doText(outro_win, left + 120, bottom + 50, &self.outro_win_text_ents);
-    }
-
-    // Help
-    {
-        const texture = renderer_ctx.getTexture(self.big_window_texture_handle);
-        const width: f32 = @floatFromInt(texture[0].bitfield_1.mWidth);
-        const height: f32 = @floatFromInt(texture[0].bitfield_1.mHeight);
-
-        const left = window_size_x / 2 - width / 2;
-        const bottom = window_size_y / 2 - height / 2;
-
-        doText(help, left + 120, bottom + 50, &self.help_text_ents);
-    }
-
-    // Credits
-    {
-        const texture = renderer_ctx.getTexture(self.big_window_texture_handle);
-        const width: f32 = @floatFromInt(texture[0].bitfield_1.mWidth);
-        const height: f32 = @floatFromInt(texture[0].bitfield_1.mHeight);
-
-        const left = window_size_x / 2 - width / 2;
-        const bottom = window_size_y / 2 - height / 2;
-
-        doText(credits, left + 120, bottom + 50, &self.credits_text_ents);
-    }
-
     {
         const left = 10;
         const bottom = 10;
@@ -626,15 +580,23 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
         }
     } else if (self.intro_text_ents[0].id == 0 and environment_info.game_state == .running) {
         big_window_image.material.color[3] = 0;
-        for (self.help_text_ents) |ent| {
-            const text = ent.getMut(fd.UIText).?;
-            text.shadow_color[3] = 0;
-            text.text_color[3] = 0;
+        for (&self.help_text_ents) |*ent| {
+            if (ent.id != 0) {
+                const text = ent.getMut(fd.UIText).?;
+                text.shadow_color[3] = 0;
+                text.text_color[3] = 0;
+                self.ecsu_world.delete(ent.id);
+                ent.id = 0;
+            }
         }
-        for (self.credits_text_ents) |ent| {
-            const text = ent.getMut(fd.UIText).?;
-            text.shadow_color[3] = 0;
-            text.text_color[3] = 0;
+        for (&self.credits_text_ents) |*ent| {
+            if (ent.id != 0) {
+                const text = ent.getMut(fd.UIText).?;
+                text.shadow_color[3] = 0;
+                text.text_color[3] = 0;
+                self.ecsu_world.delete(ent.id);
+                ent.id = 0;
+            }
         }
         for (self.help2_text_ents) |ent| {
             const text = ent.getMut(fd.UIText).?;
