@@ -385,6 +385,7 @@ pub fn run() void {
         const done = update_full(gameloop_context);
 
         ui.update(gameloop_context.input_frame_data, @min(1.0 / 30.0, gameloop_context.stats.delta_time));
+        environment_info.dist_to_enemy_sq = 10000000;
 
         ztracy.FrameMark();
 

@@ -317,7 +317,7 @@ pub fn init(player_pos: fd.Position, prefab_mgr: *prefab_manager.PrefabManager, 
         var ent = prefab_mgr.instantiatePrefab(ecsu_world, config.prefab.slime);
         ent.setName("mama_slime");
 
-        const spawn_pos = [3]f32{ 8000, 200, 8000 };
+        const spawn_pos = [3]f32{ 4000 + std.crypto.random.float(f32) * 8000, 200, 13000 };
         ent.set(fd.Position{ .x = spawn_pos[0], .y = spawn_pos[1], .z = spawn_pos[2] });
 
         const scale: f32 = 1;

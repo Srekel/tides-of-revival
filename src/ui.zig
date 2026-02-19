@@ -248,7 +248,9 @@ const help: Text = .{
             .anchor_x = -1,
         },
         .{ .text = "Look around by moving the mouse." },
-        .{ .text = "Press and hold down Left Mouse Button to draw and shoot your bow." },
+        .{ .text = "" },
+        .{ .text = "Press Left Mouse Button to shoot your bow." },
+        .{ .text = "Hold down Left Mouse Button for greater accuracy and damage." },
         .{ .text = "" },
         .{ .text = "Press W, A, S, D to move. " },
         .{ .text = "Hold shift to run." },
@@ -638,6 +640,24 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
             const text = ent.getMut(fd.UIText).?;
             text.shadow_color[3] = 1;
             text.text_color[3] = 1;
+        }
+    }
+
+    if (environment_info.rest_state == .not and environment_info.journey_state == .not) {
+        var vignette_settings = &self.renderer_ctx.post_processing_pass.vignette_settings;
+        if (environment_info.dist_to_enemy_sq < 40 * 40) {
+            const dist = @max(0.0, std.math.sqrt(environment_info.dist_to_enemy_sq));
+            const dist_01 = @max(0, (dist - 5)) / 35;
+            const target_vignette_settings_color = std.math.lerp(0.75, 0, dist_01);
+            const target_vignette_settings_radius = std.math.lerp(0.7, 1, dist_01);
+            const target_vignette_settings_feather = std.math.lerp(0.7, 1, dist_01);
+            vignette_settings.color[0] = std.math.lerp(vignette_settings.color[0], target_vignette_settings_color, 0.1);
+            vignette_settings.radius = std.math.lerp(vignette_settings.radius, target_vignette_settings_radius, 0.1);
+            vignette_settings.feather = std.math.lerp(vignette_settings.feather, target_vignette_settings_feather, 0.1);
+        } else {
+            vignette_settings.color[0] = std.math.lerp(vignette_settings.color[0], 0, 0.01);
+            vignette_settings.radius = std.math.lerp(vignette_settings.radius, 1, 0.01);
+            vignette_settings.feather = std.math.lerp(vignette_settings.feather, 1, 0.01);
         }
     }
 }

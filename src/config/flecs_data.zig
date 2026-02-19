@@ -813,6 +813,7 @@ pub const EnvironmentInfo = struct {
     journey_time_of_day: enum { day, night } = .day,
     journey_duration_percent_predict: f32 = 0,
     player_state_time: f32 = 0,
+    dist_to_enemy_sq: f32 = 10000000000,
 
     slime_footsteps: [6 * 3]Footstep = undefined,
     pub fn playFootstep(self: *EnvironmentInfo, footstep_pos: [3]f32, base_scale: f32) void {

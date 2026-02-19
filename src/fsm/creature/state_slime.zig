@@ -299,8 +299,6 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
     const camera_pos_z = zm.loadArr3(camera_pos);
     const is_day = environment_info.time_of_day_percent > 0.9 or environment_info.time_of_day_percent < 0.5;
 
-    var closest_dist_sq: f32 = 10000000;
-
     for (positions, rotations, forwards, bodies, scales, locomotions, enemies, it.entities()) |*pos, *rot, *fwd, *body, *scale, *locomotion, *enemy, ent| {
         _ = ent; // autofix
         if (!lol) {
@@ -402,8 +400,8 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                     // std.log.warn("gameover", .{});
                     _ = ecs.set(ctx.ecsu_world.world, player_ent, fd.Health, fd.Health{ .value = 0 });
                 }
-                if (dist_to_player_sq < closest_dist_sq) {
-                    closest_dist_sq = dist_to_player_sq;
+                if (dist_to_player_sq < environment_info.dist_to_enemy_sq) {
+                    environment_info.dist_to_enemy_sq = dist_to_player_sq;
                 }
             }
 
@@ -427,21 +425,6 @@ fn fsm_enemy_slime(it: *ecs.iter_t) callconv(.C) void {
                 scale.z *= 1.002;
                 pos.y -= 0.1 * it.delta_system_time;
             }
-        }
-    }
-
-    if (environment_info.rest_state == .not and environment_info.journey_state == .not) {
-        var vignette_settings = &ctx.renderer.post_processing_pass.vignette_settings;
-        if (closest_dist_sq < 40 * 40) {
-            const dist = @max(0.0, std.math.sqrt(closest_dist_sq));
-            const dist_01 = dist / 40;
-            vignette_settings.color[0] = std.math.lerp(1, 0, dist_01);
-            vignette_settings.radius = std.math.lerp(0.5, 1, dist_01);
-            vignette_settings.feather = std.math.lerp(0.5, 1, dist_01);
-        } else {
-            vignette_settings.color[0] = std.math.lerp(vignette_settings.color[0], 0, 0.01);
-            vignette_settings.radius = std.math.lerp(vignette_settings.radius, 1, 0.01);
-            vignette_settings.feather = std.math.lerp(vignette_settings.feather, 1, 0.01);
         }
     }
 }
@@ -485,7 +468,7 @@ const SlimeDropTask = struct {
             return .remove;
         }
 
-        if (std.crypto.random.float(f64) > 0.3) {
+        if (std.crypto.random.float(f64) > 0.6) {
             return .reschedule;
         }
 
@@ -570,8 +553,8 @@ const SlimeDropTask = struct {
                     .g = 191.0 / 255.0,
                     .b = 255.0 / 255.0,
                 },
-                .range = 80,
-                .intensity = 20,
+                .range = 90,
+                .intensity = 25,
             });
 
             const task_data_die = ctx.task_queue.allocateTaskData(3600, DieTask);
@@ -683,7 +666,7 @@ const SplitIfNearPlayer = struct {
 
         const player_pos_z = zm.loadArr3(player_pos.elemsConst().*);
         const self_pos_z = zm.loadArr3(self_pos.elemsConst().*);
-        if (zm.length3(player_pos_z - self_pos_z)[0] > 300) {
+        if (zm.length3(player_pos_z - self_pos_z)[0] > 400) {
             return .reschedule;
         }
 
@@ -866,10 +849,14 @@ const EmsmallenTask = struct {
         const self: *EmsmallenTask = @alignCast(@ptrCast(data));
         var light = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.PointLight).?;
         // light.range *= 0.99;
-        light.intensity *= 0.99;
+
+        light.intensity *= 0.995;
         // light.color.r = @min(0.5, light.color.r * 1.02);
         // light.color.g = @min(0.5, light.color.g * 1.01);
-        // light.color.b *= 0.99;
+        light.color.g *= 0.99;
+        if (light.color.g < 0.5) {
+            light.color.r *= 0.99;
+        }
         var scale = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Scale).?;
         scale.x *= 0.96;
         scale.z *= 0.96;
