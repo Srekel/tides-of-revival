@@ -11,7 +11,7 @@ import build_licenses
 build_licenses.build_licenses()
 
 release = "A_Sense_Of_Scale"
-build = "Beta5"
+build = "RC3"
 
 os.chdir("..")
 
