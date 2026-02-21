@@ -384,7 +384,8 @@ pub fn run() void {
         // but probably not worth looking into deeper until we get a job system.
         const done = update_full(gameloop_context);
 
-        ui.update(gameloop_context.input_frame_data, @min(1.0 / 30.0, gameloop_context.stats.delta_time));
+        const dt = @min(1.0 / 30.0, gameloop_context.stats.delta_time);
+        ui.update(gameloop_context.input_frame_data, gameloop_context.renderer, dt);
         environment_info.dist_to_enemy_sq = 10000000;
 
         ztracy.FrameMark();
@@ -476,6 +477,10 @@ fn update_full(gameloop_context: GameloopContext) bool {
 
     if (input_frame_data.just_pressed(config.input.toggle_vsync)) {
         renderer_ctx.toggleVSync();
+    }
+
+    if (input_frame_data.just_pressed(config.input.toggle_terrain_shadows)) {
+        renderer_ctx.toggleTerrainShadows();
     }
 
     if (input_frame_data.just_pressed(config.input.time_speed_up)) {

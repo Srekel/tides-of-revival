@@ -455,6 +455,7 @@ pub const UIText = struct {
     shadow: bool = false,
     font_size: f32,
     text: []const u8,
+    enabled: bool = true,
 };
 
 pub const UIMaterial = struct {

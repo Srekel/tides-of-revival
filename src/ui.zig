@@ -9,6 +9,9 @@ const config = @import("config/config.zig");
 
 const logo_size: f32 = 100;
 const logo_margin: f32 = 20;
+const stats_size: f32 = 100;
+const stats_bottom_margin: f32 = 20;
+const stats_right_margin: f32 = 100;
 
 const TextLine = struct {
     text: [:0]const u8 = "",
@@ -40,6 +43,9 @@ const UI = struct {
     help_text_ents: [help.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** help.lines.len,
     credits_text_ents: [credits.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** credits.lines.len,
     help2_text_ents: [help2.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** help2.lines.len,
+    toggle_vsync_text_ents: [toggle_vsync_on.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** toggle_vsync_on.lines.len,
+    toggle_terrain_shadows_text_ents: [toggle_terrain_shadows_on.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** toggle_terrain_shadows_on.lines.len,
+    stats_text_ents: [stats_text.lines.len]ecsu.Entity = [_]ecsu.Entity{.{}} ** stats_text.lines.len,
 
     main_window: *window.Window = undefined,
     ecsu_world: ecsu.World = undefined,
@@ -48,7 +54,7 @@ const UI = struct {
 
 var self: UI = .{};
 
-fn doText(text: Text, left_base: f32, bottom_base: f32, entities: []ecsu.Entity) void {
+fn doText(text: Text, left_base: f32, bottom_base: f32, entities: []ecsu.Entity) f32 {
     var column_bottom = bottom_base;
     var bottom = bottom_base;
     var left = left_base;
@@ -90,6 +96,8 @@ fn doText(text: Text, left_base: f32, bottom_base: f32, entities: []ecsu.Entity)
 
         bottom += size * line.line_height;
     }
+
+    return bottom;
 }
 
 const intro: Text = .{
@@ -283,6 +291,67 @@ const help2: Text = .{
         .{
             .text = "[C] Credits",
         },
+        .{
+            .text = "[F1] Stats",
+        },
+    },
+};
+
+const toggle_terrain_shadows_on: Text = .{
+    .color_start = [4]f32{ 200.0 / 255.0, 200.0 / 255.0, 200.0 / 255.0, 1.0 },
+    .color_end = [4]f32{ 0.0 / 255.0, 0.0 / 255.0, 0.0 / 255.0, 1.0 },
+    .lines = &.{
+        .{
+            .text = "[T] Terrain Shadows: ON",
+            .size = 25,
+        },
+    },
+};
+
+const toggle_terrain_shadows_off: Text = .{
+    .color_start = [4]f32{ 200.0 / 255.0, 200.0 / 255.0, 200.0 / 255.0, 1.0 },
+    .color_end = [4]f32{ 0.0 / 255.0, 0.0 / 255.0, 0.0 / 255.0, 1.0 },
+    .lines = &.{
+        .{
+            .text = "[T] Terrain Shadows: OFF",
+            .size = 25,
+        },
+    },
+};
+
+const toggle_vsync_on: Text = .{
+    .color_start = [4]f32{ 200.0 / 255.0, 200.0 / 255.0, 200.0 / 255.0, 1.0 },
+    .color_end = [4]f32{ 0.0 / 255.0, 0.0 / 255.0, 0.0 / 255.0, 1.0 },
+    .lines = &.{
+        .{
+            .text = "[V] VSync: ON",
+            .size = 25,
+        },
+    },
+};
+
+const toggle_vsync_off: Text = .{
+    .color_start = [4]f32{ 200.0 / 255.0, 200.0 / 255.0, 200.0 / 255.0, 1.0 },
+    .color_end = [4]f32{ 0.0 / 255.0, 0.0 / 255.0, 0.0 / 255.0, 1.0 },
+    .lines = &.{
+        .{
+            .text = "[V] VSync: OFF",
+            .size = 25,
+        },
+    },
+};
+
+const stats_text: Text = .{
+    .color_start = [4]f32{ 200.0 / 255.0, 200.0 / 255.0, 200.0 / 255.0, 0.0 },
+    .color_end = [4]f32{ 0.0 / 255.0, 0.0 / 255.0, 0.0 / 255.0, 0.0 },
+    .lines = &.{
+        .{
+            .text = "GPU: ",
+            .size = 18,
+        },
+        .{
+            .text = "CPU: ",
+        },
     },
 };
 
@@ -390,20 +459,31 @@ pub fn init(renderer_ctx: *renderer.Renderer, main_window: *window.Window, ecsu_
         const left = window_size_x / 2 - width / 2;
         const bottom = window_size_y / 2 - height / 2;
 
-        doText(intro, left + 120, bottom + 50, &self.intro_text_ents);
+        _ = doText(intro, left + 120, bottom + 50, &self.intro_text_ents);
     }
 
     {
-        const left = 10;
-        const bottom = 10;
+        const left: f32 = 10;
+        var bottom: f32 = 10;
 
-        doText(help2, left, bottom, &self.help2_text_ents);
+        bottom = doText(help2, left, bottom, &self.help2_text_ents);
+
+        bottom = doText(toggle_vsync_off, left, bottom, &self.toggle_vsync_text_ents);
+        bottom = doText(toggle_terrain_shadows_on, left, bottom, &self.toggle_terrain_shadows_text_ents);
+    }
+
+    // Stats
+    {
+        const left: f32 = window_size_x - stats_right_margin - stats_size;
+        const bottom = window_size_y - stats_bottom_margin - stats_size;
+
+        _ = doText(stats_text, left, bottom, &self.stats_text_ents);
     }
 }
 
 pub fn deinit() void {}
 
-pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
+pub fn update(input_frame_data: *input.FrameData, rctx: *renderer.Renderer, dt: f32) void {
     // var debugself = self;
 
     const environment_info = self.ecsu_world.getSingletonMut(fd.EnvironmentInfo).?;
@@ -430,12 +510,44 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
         logo.rect.y = window_size_y - logo_margin - logo_size;
     }
 
+    // Rendering toggles
+    {
+        const vsync_toggle = self.toggle_vsync_text_ents[0].getMut(fd.UIText).?;
+        if (rctx.vsync_enabled) {
+            vsync_toggle.text = toggle_vsync_on.lines[0].text;
+        } else{
+            vsync_toggle.text = toggle_vsync_off.lines[0].text;
+        }
+
+        const shadow_toggle = self.toggle_terrain_shadows_text_ents[0].getMut(fd.UIText).?;
+        if (rctx.terrain_shadows_enabled) {
+            shadow_toggle.text = toggle_terrain_shadows_on.lines[0].text;
+        } else{
+            shadow_toggle.text = toggle_terrain_shadows_off.lines[0].text;
+        }
+    }
+
+    // Rendering Stats
+    {
+        const gpu_stats = self.stats_text_ents[0].getMut(fd.UIText).?;
+        gpu_stats.enabled = rctx.display_stats;
+        gpu_stats.text = &rctx.gpu_average_ms;
+        gpu_stats.left = window_size_x - stats_right_margin - stats_size;
+        gpu_stats.bottom = window_size_y - stats_bottom_margin - stats_size - stats_text.lines[0].size;
+
+        const cpu_stats = self.stats_text_ents[1].getMut(fd.UIText).?;
+        cpu_stats.enabled = rctx.display_stats;
+        cpu_stats.text = &rctx.cpu_average_ms;
+        cpu_stats.left = window_size_x - stats_right_margin - stats_size;
+        cpu_stats.bottom = window_size_y - stats_bottom_margin - stats_size;
+    }
+
     const help_pressed = input_frame_data.held(config.input.help);
     const credits_pressed = input_frame_data.held(config.input.credits);
 
     // Intro
     if (self.intro_text_ents[0].id != 0) {
-        doText(intro, big_window_left + 30, big_window_bottom + 50, &self.intro_text_ents);
+        _ = doText(intro, big_window_left + 30, big_window_bottom + 50, &self.intro_text_ents);
 
         if (input_frame_data.just_pressed(config.input.wielded_use_primary) or help_pressed or credits_pressed) {
             for (self.intro_text_ents) |ent| {
@@ -469,7 +581,7 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
         const player_health = ecs.get(self.ecsu_world.world, player_ent, fd.Health).?;
         if (player_health.value == 0) {
             environment_info.game_state = .game_over;
-            doText(outro_game_over, big_window_left + 30, big_window_bottom + 50, &self.outro_game_over_text_ents);
+            _ = doText(outro_game_over, big_window_left + 30, big_window_bottom + 50, &self.outro_game_over_text_ents);
 
             // std.log.warn("lol2 {} {}", .{ self.intro_text_ents[0].id, player_health.value });
             if (environment_info.active_camera.?.id != environment_info.player_camera.?.id) {
@@ -517,7 +629,7 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
 
             if (!slime_alive) {
                 environment_info.game_state = .game_over;
-                doText(outro_win, big_window_left + 30, big_window_bottom + 50, &self.outro_win_text_ents);
+                _ = doText(outro_win, big_window_left + 30, big_window_bottom + 50, &self.outro_win_text_ents);
 
                 if (environment_info.active_camera.?.id != environment_info.player_camera.?.id) {
                     big_window_image.material.color[3] = @max(0, big_window_image.material.color[3] - dt * 4);
@@ -543,7 +655,7 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
 
     // Intro
     if (help_pressed) {
-        doText(help, big_window_left + 30, big_window_bottom + 50, &self.help_text_ents);
+        _ = doText(help, big_window_left + 30, big_window_bottom + 50, &self.help_text_ents);
         if (big_window_image.material.color[3] < 1) {
             big_window_image.material.color[3] = @min(1, big_window_image.material.color[3] + dt * 10);
         } else {
@@ -561,7 +673,7 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
             }
         }
     } else if (credits_pressed) {
-        doText(credits, big_window_left + 30, big_window_bottom + 50, &self.credits_text_ents);
+        _ = doText(credits, big_window_left + 30, big_window_bottom + 50, &self.credits_text_ents);
         if (big_window_image.material.color[3] < 1) {
             big_window_image.material.color[3] = @min(1, big_window_image.material.color[3] + dt * 10);
         } else {
@@ -599,6 +711,21 @@ pub fn update(input_frame_data: *input.FrameData, dt: f32) void {
             }
         }
         for (self.help2_text_ents) |ent| {
+            const text = ent.getMut(fd.UIText).?;
+            text.shadow_color[3] = 1;
+            text.text_color[3] = 1;
+        }
+        for (self.toggle_vsync_text_ents) |ent| {
+            const text = ent.getMut(fd.UIText).?;
+            text.shadow_color[3] = 1;
+            text.text_color[3] = 1;
+        }
+        for (self.toggle_terrain_shadows_text_ents) |ent| {
+            const text = ent.getMut(fd.UIText).?;
+            text.shadow_color[3] = 1;
+            text.text_color[3] = 1;
+        }
+        for (self.stats_text_ents) |ent| {
             const text = ent.getMut(fd.UIText).?;
             text.shadow_color[3] = 1;
             text.text_color[3] = 1;

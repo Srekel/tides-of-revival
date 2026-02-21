@@ -468,6 +468,10 @@ fn postUpdate(it: *ecs.iter_t) callconv(.C) void {
         while (ecs.query_next(&iter)) {
             const ui_texts = ecs.field(&iter, fd.UIText, 0).?;
             for (ui_texts) |ui_text| {
+                if (!ui_text.enabled) {
+                    continue;
+                }
+
                 var renderer_ui_text: renderer_types.UiText = undefined;
                 util.memcpy(&renderer_ui_text, &ui_text, @sizeOf(renderer_types.UiText), .{});
                 system.state.ui_texts.append(renderer_ui_text) catch unreachable;

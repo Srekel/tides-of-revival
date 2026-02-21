@@ -740,6 +740,10 @@ pub const Renderer = struct {
         self.vsync_enabled = !self.vsync_enabled;
     }
 
+    pub fn toggleTerrainShadows(self: *Renderer) void {
+        self.terrain_shadows_enabled = !self.terrain_shadows_enabled;
+    }
+
     pub fn reloadShaders(self: *Renderer) void {
         const reload_desc = graphics.ReloadDesc{
             .mType = .{ .SHADER = true },
@@ -814,32 +818,6 @@ pub const Renderer = struct {
 
         self.ui_texts.clearRetainingCapacity();
         self.ui_texts.appendSlice(update_desc.ui_texts.items) catch unreachable;
-
-        if (self.display_stats) {
-            self.ui_texts.append(.{
-                .text_color = [4]f32{ 0.0, 1.0, 0.0, 1.0 },
-                .shadow_color = [4]f32{ 0.0, 0.0, 0.0, 1.0 },
-                .left = 10.0,
-                .bottom = 100.0,
-                .shadow_offset_x = 0.0,
-                .shadow_offset_y = 0.0,
-                .shadow_blur = 0.5,
-                .font_size = 18.0,
-                .text = &self.gpu_average_ms,
-            }) catch unreachable;
-
-            self.ui_texts.append(.{
-                .text_color = [4]f32{ 0.0, 1.0, 0.0, 1.0 },
-                .shadow_color = [4]f32{ 0.0, 0.0, 0.0, 1.0 },
-                .left = 10.0,
-                .bottom = 120.0,
-                .shadow_offset_x = 0.0,
-                .shadow_offset_y = 0.0,
-                .shadow_blur = 0.5,
-                .font_size = 18.0,
-                .text = &self.cpu_average_ms,
-            }) catch unreachable;
-        }
     }
 
     pub fn draw(self: *Renderer) void {
