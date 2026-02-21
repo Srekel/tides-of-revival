@@ -42,6 +42,7 @@ pub const exit = ID("exit");
 
 pub const reload_shaders = ID("reload_shaders");
 pub const toggle_vsync = ID("toggle_vsync");
+pub const toggle_terrain_shadows = ID("toggle_terrain_shadows");
 pub const toggle_stats = ID("toggle_stats");
 
 pub const time_speed_up = ID("time_speed_up");
@@ -81,6 +82,7 @@ pub fn createDefaultTargetDefaults(allocator: std.mem.Allocator) input.TargetMap
         itm.putAssumeCapacity(exit, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(reload_shaders, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(toggle_vsync, input.TargetValue{ .number = 0 });
+        itm.putAssumeCapacity(toggle_terrain_shadows, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(toggle_stats, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(time_speed_up, input.TargetValue{ .number = 0 });
         itm.putAssumeCapacity(time_speed_down, input.TargetValue{ .number = 0 });
@@ -136,6 +138,7 @@ pub fn createKeyMap(allocator: std.mem.Allocator) input.KeyMap {
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = exit, .source = input.BindingSource{ .keyboard_key = .escape } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = reload_shaders, .source = input.BindingSource{ .keyboard_key = .F9 } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = toggle_vsync, .source = input.BindingSource{ .keyboard_key = .v } });
+        keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = toggle_terrain_shadows, .source = input.BindingSource{ .keyboard_key = .t } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = toggle_stats, .source = input.BindingSource{ .keyboard_key = .F1 } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = time_speed_up, .source = input.BindingSource{ .keyboard_key = .page_up } });
         keyboard_map.bindings.appendAssumeCapacity(.{ .target_id = time_speed_down, .source = input.BindingSource{ .keyboard_key = .page_down } });
