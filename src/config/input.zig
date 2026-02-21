@@ -203,10 +203,11 @@ pub fn createKeyMap(allocator: std.mem.Allocator) input.KeyMap {
         gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = gamepad_look_y, .source = input.BindingSource{ .gamepad_axis = .right_y } });
         gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = gamepad_move_x, .source = input.BindingSource{ .gamepad_axis = .left_x } });
         gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = gamepad_move_y, .source = input.BindingSource{ .gamepad_axis = .left_y } });
-        gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = wielded_use_primary, .source = input.BindingSource{ .gamepad_button = .right_bumper } });
+        // gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = wielded_use_primary, .source = input.BindingSource{ .gamepad_button = .right_bumper } });
+        gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = wielded_use_primary, .source = input.BindingSource{ .gamepad_axis = .right_trigger } });
         // gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = move_slow, .source = input.BindingSource{ .gamepad_button = .left_bumper } });
         gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = move_fast, .source = input.BindingSource{ .gamepad_button = .left_bumper } });
-        gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = journey, .source = input.BindingSource{ .gamepad_button = .a } });
+        gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = interact, .source = input.BindingSource{ .gamepad_button = .x } });
         gamepad_map.bindings.appendAssumeCapacity(.{ .target_id = rest, .source = input.BindingSource{ .gamepad_button = .y } });
         gamepad_map.processors.ensureTotalCapacity(16) catch unreachable;
         gamepad_map.processors.appendAssumeCapacity(.{
@@ -228,6 +229,15 @@ pub fn createKeyMap(allocator: std.mem.Allocator) input.KeyMap {
             .target_id = gamepad_move_y,
             .always_use_result = true,
             .class = input.ProcessorClass{ .deadzone = input.ProcessorDeadzone{ .source_target = gamepad_move_y, .zone = 0.2 } },
+        });
+        gamepad_map.processors.appendAssumeCapacity(.{
+            .target_id = wielded_use_primary,
+            .always_use_result = true,
+            .class = input.ProcessorClass{ .deadzone = input.ProcessorDeadzone{
+                .source_target = wielded_use_primary,
+                .zone = 0.2,
+                .actually_0_1 = true,
+            } },
         });
 
         // Sensitivity

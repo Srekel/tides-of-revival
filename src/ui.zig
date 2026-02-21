@@ -257,17 +257,17 @@ const help: Text = .{
         },
         .{ .text = "Look around by moving the mouse." },
         .{ .text = "" },
-        .{ .text = "Press Left Mouse Button to shoot your bow." },
+        .{ .text = "Press Left Mouse Button to shoot your bow. (Gamepad: Right bumper)" },
         .{ .text = "Hold down Left Mouse Button for greater accuracy and damage." },
         .{ .text = "" },
         .{ .text = "Press W, A, S, D to move. " },
-        .{ .text = "Hold shift to run." },
+        .{ .text = "Hold shift to run. (Gamepad: Left bumper)" },
         .{ .text = "" },
         .{ .text = "To journey long distances, aim somewhere and when the boot icon" },
-        .{ .text = "is white, press F to travel there." },
+        .{ .text = "is white, press F to travel there. (Gamepad: X)" },
         .{ .text = "" },
         .{ .text = "To rest, look at the ground. When the fireplace icon" },
-        .{ .text = "is white, press R to rest. You will rest here until morning." },
+        .{ .text = "is white, press R to rest. (Gamepad: Y) You will rest here until morning." },
         .{ .text = "" },
         .{ .text = "Tip: Travel to hilltops with a view. Rest there over night and" },
         .{ .text = "look out for mama slime!" },
@@ -514,14 +514,14 @@ pub fn update(input_frame_data: *input.FrameData, rctx: *renderer.Renderer, dt: 
         const vsync_toggle = self.toggle_vsync_text_ents[0].getMut(fd.UIText).?;
         if (rctx.vsync_enabled) {
             vsync_toggle.text = toggle_vsync_on.lines[0].text;
-        } else{
+        } else {
             vsync_toggle.text = toggle_vsync_off.lines[0].text;
         }
 
         const shadow_toggle = self.toggle_terrain_shadows_text_ents[0].getMut(fd.UIText).?;
         if (rctx.terrain_shadows_enabled) {
             shadow_toggle.text = toggle_terrain_shadows_on.lines[0].text;
-        } else{
+        } else {
             shadow_toggle.text = toggle_terrain_shadows_off.lines[0].text;
         }
     }

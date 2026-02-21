@@ -1082,8 +1082,8 @@ fn updateRest(it: *ecs.iter_t) callconv(.C) void {
                     environment_info.player_state_time = 0;
                     environment_info.rest_state = .not;
                 }
-                vignette_settings.feather = 1 - environment_info.player_state_time * 0.7;
-                vignette_settings.radius = 1 - environment_info.player_state_time * 0.7;
+                vignette_settings.feather = 1 - environment_info.player_state_time * 0.3;
+                vignette_settings.radius = 1 - environment_info.player_state_time * 0.3;
             },
         }
     }

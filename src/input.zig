@@ -143,16 +143,28 @@ pub const ProcessorScalar = struct {
 pub const ProcessorDeadzone = struct {
     source_target: IdLocal,
     zone: f32,
+    actually_0_1: bool = false,
 
     pub fn process(self: ProcessorDeadzone, targets_curr: TargetMap, targets_prev: TargetMap) TargetValue {
         _ = targets_prev;
         var res = targets_curr.get(self.source_target).?;
-        if (@abs(res.number) < self.zone) {
-            res.number = 0;
+        if (self.actually_0_1) {
+            if (@abs(1 + res.number) < self.zone) {
+                res.number = 0;
+            } else {
+                // Remap [-1..zone..1] to [0..1]
+                res.number = @max(0, (1 + res.number - self.zone) / (1.0 - self.zone));
+            }
         } else {
-            // Remap [zone..1] to [0..1]
-            res.number = (res.number - self.zone) / (1.0 - self.zone);
+            // this is a -1 to 1 axis
+            if (@abs(res.number) < self.zone) {
+                res.number = 0;
+            } else {
+                // Remap [zone..1] to [0..1]
+                res.number = (res.number - self.zone) / (1.0 - self.zone);
+            }
         }
+
         return res;
     }
 };
@@ -288,59 +300,59 @@ pub fn doTheThing(allocator: std.mem.Allocator, input_frame_data: *FrameData) vo
                 // std.debug.print("prevalue {}\n", .{binding.source});
                 const value =
                     switch (binding.source) {
-                    .keyboard_key => |key| blk: {
-                        if (window.getKey(key) == .press) {
-                            // std.debug.print("press {}\n", .{key});
-                            break :blk TargetValue{ .number = 1 };
-                        }
+                        .keyboard_key => |key| blk: {
+                            if (window.getKey(key) == .press) {
+                                // std.debug.print("press {}\n", .{key});
+                                break :blk TargetValue{ .number = 1 };
+                            }
 
-                        // std.debug.print("break {}\n", .{key});
-                        // break; // footgun
-                        break :blk TargetValue{ .number = 0 };
-                    },
-                    .mouse_button => |button| blk: {
-                        const button_action = window.getMouseButton(button);
-                        break :blk TargetValue{ .number = if (button_action == .press) 1 else 0 };
-                    },
-                    .mouse_cursor => blk: {
-                        const cursor_pos = window.getCursorPos();
-                        const cursor_value = TargetValue{ .vector2 = .{
-                            @as(f32, @floatCast(cursor_pos[0])),
-                            @as(f32, @floatCast(cursor_pos[1])),
-                        } };
-                        break :blk cursor_value;
-                    },
-                    .gamepad_axis => |axis| blk: {
-                        var joystick_id: u32 = 0;
-                        while (joystick_id < zglfw.Joystick.maximum_supported) : (joystick_id += 1) {
-                            if (zglfw.Joystick.isPresent(@enumFromInt(joystick_id))) {
-                                if (zglfw.Joystick.asGamepad(@enumFromInt(joystick_id))) |gamepad| {
-                                    const gamepad_state = gamepad.getState() catch unreachable;
-                                    const value = gamepad_state.axes[@intFromEnum(axis)];
-                                    break :blk TargetValue{ .number = value };
+                            // std.debug.print("break {}\n", .{key});
+                            // break; // footgun
+                            break :blk TargetValue{ .number = 0 };
+                        },
+                        .mouse_button => |button| blk: {
+                            const button_action = window.getMouseButton(button);
+                            break :blk TargetValue{ .number = if (button_action == .press) 1 else 0 };
+                        },
+                        .mouse_cursor => blk: {
+                            const cursor_pos = window.getCursorPos();
+                            const cursor_value = TargetValue{ .vector2 = .{
+                                @as(f32, @floatCast(cursor_pos[0])),
+                                @as(f32, @floatCast(cursor_pos[1])),
+                            } };
+                            break :blk cursor_value;
+                        },
+                        .gamepad_axis => |axis| blk: {
+                            var joystick_id: u32 = 0;
+                            while (joystick_id < zglfw.Joystick.maximum_supported) : (joystick_id += 1) {
+                                if (zglfw.Joystick.isPresent(@enumFromInt(joystick_id))) {
+                                    if (zglfw.Joystick.asGamepad(@enumFromInt(joystick_id))) |gamepad| {
+                                        const gamepad_state = gamepad.getState() catch unreachable;
+                                        const value = gamepad_state.axes[@intFromEnum(axis)];
+                                        break :blk TargetValue{ .number = value };
+                                    }
                                 }
                             }
-                        }
 
-                        break :blk TargetValue{ .number = 0 };
-                    },
-                    .gamepad_button => |button| blk: {
-                        var joystick_id: u32 = 0;
-                        while (joystick_id < zglfw.Joystick.maximum_supported) : (joystick_id += 1) {
-                            if (zglfw.Joystick.isPresent(@enumFromInt(joystick_id))) {
-                                if (zglfw.Joystick.asGamepad(@enumFromInt(joystick_id))) |gamepad| {
-                                    const gamepad_state = gamepad.getState() catch unreachable;
-                                    const action = gamepad_state.buttons[@intFromEnum(button)];
-                                    const value: f32 = if (action == .release) 0 else 1;
-                                    break :blk TargetValue{ .number = value };
+                            break :blk TargetValue{ .number = 0 };
+                        },
+                        .gamepad_button => |button| blk: {
+                            var joystick_id: u32 = 0;
+                            while (joystick_id < zglfw.Joystick.maximum_supported) : (joystick_id += 1) {
+                                if (zglfw.Joystick.isPresent(@enumFromInt(joystick_id))) {
+                                    if (zglfw.Joystick.asGamepad(@enumFromInt(joystick_id))) |gamepad| {
+                                        const gamepad_state = gamepad.getState() catch unreachable;
+                                        const action = gamepad_state.buttons[@intFromEnum(button)];
+                                        const value: f32 = if (action == .release) 0 else 1;
+                                        break :blk TargetValue{ .number = value };
+                                    }
                                 }
                             }
-                        }
 
-                        break :blk TargetValue{ .number = 0 };
-                    },
-                    .processor => TargetValue{ .number = 0 },
-                };
+                            break :blk TargetValue{ .number = 0 };
+                        },
+                        .processor => TargetValue{ .number = 0 },
+                    };
 
                 if (!value.isActive()) {
                     continue;
