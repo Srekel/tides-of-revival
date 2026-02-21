@@ -639,7 +639,7 @@ const SplitIfNearPlayer = struct {
         // todo for major slime only after it's been moving towards player for some time
 
         const locomotion = ecs.get(ctx.ecsu_world.world, self.entity, fd.Locomotion).?;
-        if (enemy.base_scale <= 1.5) {
+        if (enemy.base_scale <= 1.7) {
             return .remove;
         }
 
@@ -716,7 +716,7 @@ const SplitIfNearPlayer = struct {
         }
 
         var health = ecs.get_mut(ctx.ecsu_world.world, self.entity, fd.Health).?;
-        health.value = 20 + 30 * enemy.base_scale * enemy.base_scale * enemy.base_scale;
+        health.value = 15 + 20 * enemy.base_scale * enemy.base_scale * enemy.base_scale;
 
         var pos = ecs.get(ctx.ecsu_world.world, self.entity, fd.Position).?.*;
         pos.y += 5;

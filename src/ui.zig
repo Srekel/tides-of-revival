@@ -230,7 +230,7 @@ const outro_win: Text = .{
         .{ .text = "" },
         .{ .text = "To do this we will write a new engine from scratch. In a new language!" },
         .{ .text = "Our goals include supporting really really big worlds, better debugging," },
-        .{ .text = "improved performance, modding support, and more. " },
+        .{ .text = "improved performance, resource streaming, modding support, and more. " },
         .{ .text = "" },
         .{ .text = "So, Hill 4 will primarily be a tech foundation and demo to show off and build off of." },
         .{ .text = "" },
@@ -272,8 +272,7 @@ const help: Text = .{
         .{ .text = "Tip: Travel to hilltops with a view. Rest there over night and" },
         .{ .text = "look out for mama slime!" },
         .{ .text = "" },
-        .{ .text = "Tip: Sometimes it's better to stay a whole extra day on a good spot than to" },
-        .{ .text = "try to find another one." },
+        .{ .text = "Tip: Wait until the monster is on low ground before you attack it." },
     },
 };
 

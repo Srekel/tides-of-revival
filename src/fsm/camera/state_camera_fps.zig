@@ -306,7 +306,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                                 const down_body_hit = down_body_hit_opt.?;
                                 const down_hit_normal = down_body_hit.getWorldSpaceSurfaceNormal(down_result.hit.sub_shape_id, hit_pos);
                                 const down_hit_pos = down_ray.getPointOnRay(down_result.hit.fraction);
-                                if (down_hit_pos[1] < 700 and down_hit_pos[1] > best_down_pos[1] and down_hit_normal[1] + 0.1 > hit_normal[1]) {
+                                if (down_hit_pos[1] < 750 and down_hit_pos[1] > best_down_pos[1] and down_hit_normal[1] + 0.1 > hit_normal[1]) {
                                     // im3d.Im3d.DrawLine(
                                     //     &.{
                                     //         .x = down_hit_pos[0],
@@ -425,7 +425,7 @@ fn updateJourney(it: *ecs.iter_t) callconv(.C) void {
                     environment_info.can_journey = .no;
                 }
 
-                if (height_next > 700) {
+                if (height_next > 750) {
                     // std.log.info("can't journey due to height {d}", .{height_next});
                     color.setG(0);
                     color.setB(0);
