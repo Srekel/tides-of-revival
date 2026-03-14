@@ -40,25 +40,12 @@ These are the currently planned hills. As you can see, it is quite a ways to go 
 | -------------------------------- | ------ | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | Death from Darkness              | ✅     | 2023-01 | One brave person must light the way to a village on the other side of the valley. But make sure you stay in the light, or die... |
 | March of the Ants                | ✅     | 2023-11 | Your farmstead is under attack by vicious ants. Use your bow to protect it for as long as possible.                              |
-| A Fort Wasn't Built in a Day     | 🏃‍♀️     | 2024-08 | A nice place for a fort has been discovered. Protect it during the months it takes for the builders to finish constructing it.   |
-| All Roads Lead to Various Places | ⏲️     | 2025-06 | Protect builders and caravans as they start traveling between villages. See the web of roads grow as you make the lands safer.   |
-| The Revival Begins               | ⏲️     | 2026-02 | Bandits and wild creatures roam the lands. Only by you leading the Revival will villages start to grow and roads improve.        |
+| A Sense of Scale                 | ✅     | 2026-03 | Capsized and rescued by a village, you must repay your debt by hunting down a massive monster on a world 4x the size of Skyrim.  |
+| A Big Big World                  | 🏃‍♂️     | 2027/28 | A truly massive world filled with simulated villages. |
 
 As you can see, the hill that we are currently working on is called **A Fort Wasn't Built in a Day**. Here are the planned technical additions we plan to make during course of its development:
 
-- AI: Goals, actions, sensors
-- Day/night cycle
-- [Flecs](https://www.flecs.dev/flecs/) Explorer improvements
-- [IMGUI](https://github.com/ocornut/imgui)
-- [Jolt](https://jrouwe.github.io/JoltPhysics/) physics debug/viz
-- Modular buildings along splines
-- Pathfinding with [Recast and Detour](https://recastnav.com/)
-- Render architecture
-- Shadows (sun)
-- Simple atmosphere model
-- Terrain stitching
-- [The Debuginator](https://github.com/Srekel/the-debuginator)
-- [The-Forge](https://github.com/ConfettiFX/The-Forge) based renderer
+
 
 ## Follow the Development
 
@@ -66,14 +53,14 @@ As you can see, the hill that we are currently working on is called **A Fort Was
 - Youtube: https://www.youtube.com/@tides-of-revival
 - Itch.io: https://tides-of-revival.itch.io/tides-of-revival
 - Open World Gamedev Newsletter: https://open-world-gamedev-newsletter.vercel.app/
-- Twitter: 
-  - https://twitter.com/Srekel
-  - https://twitter.com/gmodarelli
-  - https://twitter.com/dryaddn
-- Mastodon:
-  - https://mastodon.gamedev.place/@srekel
-  - https://mastodon.gamedev.place/@gmodarelli
+- Bluesky: 
+  - https://bsky.app/profile/srekel.net
+  - https://bsky.app/profile/gmodarelli.com
 
 Only the source is stored on Github. All content is stored on a private SVN for cost and licensing issues. Let us know if you want to try building and running the game and we can help you out!
 
 All source is licensed as MIT or if you prefer, under the Unlicense. Dependencies (libraries) are listed in licenses.csv, those of course retain their individual license.
+
+NOTE: Versions after Hill 3, "A Sense of Scale", will not be published on Github, or at least not in a fully open style. This is due to us wanting to have code and content under the same repository. It also frees us up to try non-open third-party SDKs or libraries more easily. Finally it is potentially a safer approach if we ever want to sell Tides for real hard cash on some online store front! We do believe in sharing code for various reasons, modding being a big one, so even though we might not release *all* of the source any more, we will attempt to open source as much as possible once we've figured out a reasonable way to do that.
+
+NOTE: All code up until Hill 3 was written in Zig. From Hill 4 onwards, we will be writing the game in Jai.
